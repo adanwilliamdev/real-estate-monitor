@@ -6,71 +6,91 @@ O **Real Estate Monitor** coleta, processa e analisa dados imobiliários para ge
 
 A aplicação funciona **sem serviços externos obrigatórios**, utilizando SQLite e dados sintéticos realistas por padrão. O scraping de dados reais está disponível em modo *best-effort*, com fallback automático para dados de demonstração.
 
+<p align="center">
+  <img src="dashboard.png" alt="Dashboard do Real Estate Monitor" width="100%">
+</p>
+
+---
+
+## 📋 Sumário
+
+- [Stack](#️-stack)
+- [Funcionalidades](#-funcionalidades)
+- [Machine Learning](#-machine-learning)
+- [Investment Intelligence](#-investment-intelligence)
+- [API](#-api)
+- [Quick Start](#-quick-start)
+- [Docker](#-docker)
+- [CLI](#-cli)
+- [Estrutura](#-estrutura)
+- [Observação](#️-observação)
+
 ---
 
 ## 🛠️ Stack
 
 ### Backend & API
 
-* **Python 3.11+**
-* **FastAPI**
-* **Uvicorn**
-* **Pydantic**
+- **Python 3.11+**
+- **FastAPI**
+- **Uvicorn**
+- **Pydantic**
 
 ### Data Science & Machine Learning
 
-* **Pandas**
-* **NumPy**
-* **Scikit-learn**
-
-  * Random Forest
-  * K-Means
-  * Z-Score
-  * IQR
+- **Pandas**
+- **NumPy**
+- **Scikit-learn**
+  - Random Forest
+  - K-Means
+  - Z-Score
+  - IQR
 
 ### Database & Storage
 
-* **SQLite**
-* **PostgreSQL** *(opcional)*
-* **SQLAlchemy**
-* Cache em memória
+- **SQLite**
+- **PostgreSQL** *(opcional)*
+- **SQLAlchemy**
+- Cache em memória
 
 ### Dashboard
 
-* **Streamlit**
-* **Plotly**
+- **Streamlit**
+- **Plotly**
 
 ### Data Collection
 
-* **Requests**
-* **BeautifulSoup**
-* Scraping *best-effort*
-* Gerador de dados sintéticos
+- **Requests**
+- **BeautifulSoup**
+- Scraping *best-effort*
+- Gerador de dados sintéticos
 
 ### DevOps & Testing
 
-* **Docker**
-* **Docker Compose**
-* **Pytest**
-* **PowerShell**
-* **Bash**
+- **Docker**
+- **Docker Compose**
+- **Pytest**
+- **PowerShell**
+- **Bash**
 
 ---
 
 ## ✨ Funcionalidades
 
-* 📊 Coleta e tratamento de dados imobiliários
-* 🤖 Previsão de preços com **Random Forest**
-* 📈 Histórico de preços e tendências
-* 🔔 Detecção de anomalias e alertas
-* 💰 Análise de investimento, ROI, yield e payback
-* 🗺️ Análise por cidade e bairro
-* 🧠 Clusterização com K-Means
-* 🔌 API REST com FastAPI
-* 🎨 Dashboard interativo com Streamlit
-* 💾 SQLite + PostgreSQL
-* 🐳 Docker
-* 🧪 Testes automatizados
+| | |
+|---|---|
+| 📊 | Coleta e tratamento de dados imobiliários |
+| 🤖 | Previsão de preços com **Random Forest** |
+| 📈 | Histórico de preços e tendências |
+| 🔔 | Detecção de anomalias e alertas |
+| 💰 | Análise de investimento, ROI, yield e payback |
+| 🗺️ | Análise por cidade e bairro |
+| 🧠 | Clusterização com K-Means |
+| 🔌 | API REST com FastAPI |
+| 🎨 | Dashboard interativo com Streamlit |
+| 💾 | SQLite + PostgreSQL |
+| 🐳 | Docker |
+| 🧪 | Testes automatizados |
 
 ---
 
@@ -78,11 +98,11 @@ A aplicação funciona **sem serviços externos obrigatórios**, utilizando SQLi
 
 O modelo `RandomForestRegressor` estima preços utilizando:
 
-* Área
-* Quartos
-* Banheiros
-* Cidade
-* Bairro
+- Área
+- Quartos
+- Banheiros
+- Cidade
+- Bairro
 
 Também são disponibilizados **R², MAPE, importância das variáveis e intervalo de confiança aproximado**.
 
@@ -92,12 +112,12 @@ Também são disponibilizados **R², MAPE, importância das variáveis e interva
 
 O módulo de investimentos calcula:
 
-* Aluguel estimado
-* Yield bruto e líquido
-* Payback
-* Custos de transação
-* Preço/m²
-* Comparação com o mercado local
+- Aluguel estimado
+- Yield bruto e líquido
+- Payback
+- Custos de transação
+- Preço/m²
+- Comparação com o mercado local
 
 Também gera um **ranking das melhores oportunidades de investimento**.
 
@@ -107,17 +127,17 @@ Também gera um **ranking das melhores oportunidades de investimento**.
 
 Construída com **FastAPI** e documentação automática em `/docs`.
 
-| Método | Endpoint                    | Função                   |
-| ------ | --------------------------- | ------------------------ |
-| GET    | `/listings`                 | Lista imóveis            |
-| GET    | `/stats`                    | Estatísticas do mercado  |
-| GET    | `/neighborhoods`            | Dados por bairro         |
-| POST   | `/predict`                  | Previsão de preço        |
-| POST   | `/investment`               | Análise de investimento  |
-| GET    | `/investment/opportunities` | Ranking de oportunidades |
-| GET    | `/alerts`                   | Alertas                  |
-| GET    | `/history/{city}`           | Histórico                |
-| POST   | `/pipeline/run`             | Executa pipeline         |
+| Método | Endpoint                      | Função                      |
+|--------|--------------------------------|------------------------------|
+| GET    | `/listings`                   | Lista imóveis                |
+| GET    | `/stats`                      | Estatísticas do mercado      |
+| GET    | `/neighborhoods`              | Dados por bairro             |
+| POST   | `/predict`                    | Previsão de preço            |
+| POST   | `/investment`                 | Análise de investimento      |
+| GET    | `/investment/opportunities`   | Ranking de oportunidades     |
+| GET    | `/alerts`                     | Alertas                      |
+| GET    | `/history/{city}`             | Histórico                    |
+| POST   | `/pipeline/run`               | Executa pipeline             |
 
 ---
 
@@ -150,17 +170,9 @@ pip install -r requirements.txt
 python main.py run
 ```
 
-Dashboard:
+**Dashboard:** [http://localhost:8501](http://localhost:8501)
 
-```text
-http://localhost:8501
-```
-
-API:
-
-```text
-http://localhost:8000/docs
-```
+**API:** [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
@@ -182,9 +194,9 @@ python main.py dashboard
 python main.py api
 ```
 
-Cidades disponíveis nos dados demo:
+**Cidades disponíveis nos dados demo:**
 
-**São Paulo · Rio de Janeiro · Belo Horizonte · Curitiba · Porto Alegre**
+São Paulo · Rio de Janeiro · Belo Horizonte · Curitiba · Porto Alegre
 
 ---
 
