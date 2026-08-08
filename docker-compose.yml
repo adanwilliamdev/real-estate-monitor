@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # Aplicação principal (dashboard Streamlit): usa SQLite embutido por
+  # padrão, então roda sozinha sem precisar de nenhum outro serviço.
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      DATA_SOURCE: demo
+      LOG_LEVEL: INFO
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: streamlit run src/visualization/app.py --server.port=8501 --server.address=0.0.0.0
+
+  # API REST (FastAPI). Compartilha o mesmo volume `./data`, então enxerga
+  # os mesmos anúncios/modelo/alertas gerados pelo dashboard ou pelo CLI.
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATA_SOURCE: demo
+      LOG_LEVEL: INFO
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+
+  # Postgres é OPCIONAL. Suba com: docker compose --profile postgres up
+  # e defina DATABASE_URL apontando para este serviço no .env.
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: realestate_user
+      POSTGRES_PASSWORD: realestate_pass
+      POSTGRES_DB: realestate_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U realestate_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

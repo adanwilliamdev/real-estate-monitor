@@ -1,0 +1,45 @@
+# --- Core ---
+pandas>=2.0.0
+numpy>=1.24.0
+
+# --- Ingestão de dados ---
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# --- Armazenamento (SQLite por padrão; sem dependências extras) ---
+sqlalchemy>=2.0.0
+
+# --- Visualização ---
+streamlit>=1.28.0
+plotly>=5.17.0
+
+# --- Análise / ML ---
+scikit-learn>=1.3.0
+scipy>=1.11.0
+joblib>=1.3.0
+
+# --- API REST ---
+fastapi>=0.110.0
+uvicorn>=0.27.0
+pydantic>=2.5.0
+
+# --- Utilidades ---
+python-dotenv>=1.0.0
+loguru>=0.7.0
+click>=8.1.0
+
+# --- Testes ---
+pytest>=7.4.0
+httpx>=0.27.0   # necessário para testar a API com fastapi.testclient
+
+# ============================================================
+# Dependências OPCIONAIS (não necessárias para rodar o projeto)
+# Descomente conforme a necessidade:
+# ------------------------------------------------------------
+# psycopg2-binary>=2.9.0   # usar Postgres em vez de SQLite
+# selenium>=4.15.0         # scraping com navegador headless
+# redis>=5.0.0             # cache distribuído (senão usa cache em memória)
+# prefect>=2.13.0          # orquestração/agendamento com UI
+# schedule>=1.2.0          # agendador leve (src/orchestration/scheduler.py)
+# black>=23.0.0            # formatação de código (dev)
+# flake8>=6.0.0             # lint (dev)
