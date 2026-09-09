@@ -12,31 +12,33 @@
   <img src="https://skillicons.dev/icons?i=python,fastapi,pandas,numpy,sklearn,sqlite,postgres,streamlit,plotly,docker,githubactions,git&perline=12" />
 </p>
 
-<br>
-
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Scikit-learn](https://img.shields.io/badge/Scikit--learn-Machine%20Learning-F7931E?style=flat-square&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![Docker](https://img.shields.io/badge/Docker-Container-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
+<p>
+  <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/FastAPI-API-009688?style=flat-square&logo=fastapi&logoColor=white" />
+  <img src="https://img.shields.io/badge/Scikit--learn-Machine%20Learning-F7931E?style=flat-square&logo=scikit-learn&logoColor=white" />
+  <img src="https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=flat-square&logo=streamlit&logoColor=white" />
+  <img src="https://img.shields.io/badge/Docker-Container-2496ED?style=flat-square&logo=docker&logoColor=white" />
+</p>
 
 </div>
 
 ---
 
-## 📌 Sobre
+## 📌 Visão geral
 
-O **Real Estate Monitor** é uma plataforma de inteligência de mercado imobiliário que coleta, processa e analisa dados para gerar insights sobre:
+O **Real Estate Monitor** é uma plataforma de inteligência de mercado imobiliário que coleta, processa e analisa dados para transformar informações do mercado em insights acionáveis.
 
-- **Preços e tendências** do mercado
-- **Previsão de valores** com Machine Learning
-- **Oportunidades de investimento**
-- **Anomalias e imóveis abaixo do mercado**
-- **Comportamento por cidade e bairro**
+A solução foi estruturada para combinar **engenharia de software, Data Science e inteligência de negócio** em uma aplicação modular, com API REST, dashboard interativo, pipeline de dados e modelos de Machine Learning.
 
-O projeto reúne **engenharia de software, Data Science e inteligência de negócio** em uma aplicação modular, com API REST, dashboard interativo, pipeline de dados e modelos de Machine Learning.
+### Principais análises
 
-> **Modo demonstração:** funciona localmente com SQLite e dados sintéticos realistas. A coleta de dados reais possui execução *best-effort* e fallback automático para dados de demonstração.
+- 📊 **Preços e tendências** do mercado
+- 🤖 **Previsão de valores** com Machine Learning
+- 💰 **Oportunidades de investimento**
+- 🔔 **Anomalias e imóveis abaixo do mercado**
+- 🗺️ **Comportamento por cidade e bairro**
+
+> **Modo demonstração:** a aplicação funciona localmente com SQLite e dados sintéticos realistas. A coleta de dados reais possui execução *best-effort* e fallback automático para dados de demonstração.
 
 ---
 
@@ -48,12 +50,12 @@ O projeto reúne **engenharia de software, Data Science e inteligência de negó
 
 ---
 
-## ✨ O que o projeto faz
+## ✨ Funcionalidades
 
-| Módulo | O que entrega |
+| Módulo | Entrega |
 |:--|:--|
 | 📊 **Market Analytics** | Estatísticas, histórico e tendências de preços |
-| 🤖 **Price Prediction** | Estimativa de preços com Random Forest |
+| 🤖 **Price Prediction** | Estimativa de preços utilizando Random Forest |
 | 💰 **Investment Intelligence** | ROI, yield, payback e comparação com o mercado |
 | 🔔 **Alerts** | Identificação de anomalias e oportunidades |
 | 🧠 **Clustering** | Agrupamento de imóveis com K-Means |
@@ -65,7 +67,7 @@ O projeto reúne **engenharia de software, Data Science e inteligência de negó
 
 ## 🤖 Machine Learning
 
-A previsão de preços utiliza `RandomForestRegressor` considerando características como:
+A previsão de preços utiliza `RandomForestRegressor`, considerando características como:
 
 **Área · Quartos · Banheiros · Cidade · Bairro**
 
@@ -73,37 +75,40 @@ A previsão de preços utiliza `RandomForestRegressor` considerando característ
 
 - **R²**
 - **MAPE**
-- Importância das variáveis
-- Intervalo de confiança aproximado
+- **Importância das variáveis**
+- **Intervalo de confiança aproximado**
+
+### Fluxo de previsão
 
 ```text
-                  ┌─────────────────┐
-                  │  Dados imóveis  │
-                  └────────┬────────┘
-                           ↓
-                  ┌─────────────────┐
-                  │ Pré-processamento│
-                  └────────┬────────┘
-                           ↓
-                  ┌─────────────────┐
-                  │ Feature          │
-                  │ Engineering     │
-                  └────────┬────────┘
-                           ↓
-                  ┌─────────────────┐
-                  │ Random Forest   │
-                  └────────┬────────┘
-                           ↓
-             ┌─────────────┼─────────────┐
-             ↓             ↓             ↓
-        Preço estimado     R²           MAPE
+┌─────────────────┐
+│  Dados imóveis  │
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│ Pré-processamento│
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│ Feature         │
+│ Engineering     │
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│ Random Forest   │
+└────────┬────────┘
+         ↓
+   ┌─────┼─────┐
+   ↓     ↓     ↓
+ Preço   R²   MAPE
+ estimado
 ```
 
 ---
 
 ## 💰 Investment Intelligence
 
-O módulo transforma dados do imóvel em indicadores para análise de investimento:
+O módulo transforma os dados de cada imóvel em indicadores para análise de investimento:
 
 | Indicador | Objetivo |
 |:--|:--|
@@ -120,7 +125,7 @@ O sistema também permite gerar um **ranking de oportunidades** com base nos ind
 
 ## 🔔 Detecção de anomalias
 
-A aplicação combina técnicas estatísticas e análise histórica para encontrar comportamentos fora do padrão.
+A aplicação combina técnicas estatísticas e análise histórica para identificar comportamentos fora do padrão.
 
 **Z-Score · IQR · Histórico · Comparação regional**
 
@@ -144,7 +149,7 @@ O **K-Means** agrupa imóveis com características semelhantes considerando vari
 
 **Preço · Área · Preço/m² · Quartos · Localização · Indicadores de investimento**
 
-Isso permite identificar diferentes perfis de imóveis e segmentos dentro do mercado analisado.
+Essa abordagem permite identificar diferentes perfis de imóveis e segmentos dentro do mercado analisado.
 
 ---
 
@@ -164,30 +169,30 @@ Isso permite identificar diferentes perfis de imóveis e segmentos dentro do mer
                   │                           │
                   └─────────────┬─────────────┘
                                 ↓
-                     ┌────────────────────┐
-                     │   Business Logic   │
-                     └─────────┬──────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              ↓                ↓                ↓
-        ┌───────────┐    ┌───────────┐   ┌────────────┐
-        │ Analytics │    │ ML Models │   │ Investment │
-        └─────┬─────┘    └─────┬─────┘   └──────┬─────┘
-              │                │                │
-              └────────────────┼────────────────┘
-                               ↓
-                     ┌────────────────────┐
-                     │   Storage / Cache  │
-                     └─────────┬──────────┘
-                               ↓
-                     ┌────────────────────┐
-                     │ SQLite / PostgreSQL│
-                     └────────────────────┘
+                       ┌────────────────────┐
+                       │   Business Logic   │
+                       └─────────┬──────────┘
+                                 │
+                ┌────────────────┼────────────────┐
+                ↓                ↓                ↓
+          ┌───────────┐    ┌───────────┐   ┌────────────┐
+          │ Analytics │    │ ML Models │   │ Investment │
+          └─────┬─────┘    └─────┬─────┘   └──────┬─────┘
+                │                │                │
+                └────────────────┼────────────────┘
+                                 ↓
+                       ┌────────────────────┐
+                       │   Storage / Cache  │
+                       └─────────┬──────────┘
+                                 ↓
+                       ┌────────────────────┐
+                       │ SQLite / PostgreSQL│
+                       └────────────────────┘
 ```
 
 ---
 
-## 🔄 Pipeline
+## 🔄 Pipeline de dados
 
 ```text
 Demo / Scraping
@@ -196,22 +201,22 @@ Data Ingestion
       ↓
 Data Processing
       ↓
- ┌────┴──────────────┐
- ↓                   ↓
+┌─────┴──────────────┐
+↓                    ↓
 Machine Learning   Investment
- ↓                   ↓
- └────────┬──────────┘
-          ↓
-   Storage / Cache
-          ↓
- ┌────────┴────────┐
- ↓                 ↓
+↓                    ↓
+└────────┬───────────┘
+         ↓
+Storage / Cache
+         ↓
+┌────────┴────────┐
+↓                 ↓
 FastAPI         Streamlit
 ```
 
 ---
 
-## 🔌 API
+## 🔌 API REST
 
 A API REST é construída com **FastAPI** e possui documentação automática via Swagger.
 
@@ -251,19 +256,21 @@ X-API-Key: uma-chave-secreta
 
 ### ⚡ Quick Start
 
-**Windows**
+#### Windows
 
 ```powershell
 .\scripts\quick_start.ps1
 ```
 
-**Linux / macOS**
+#### Linux / macOS
 
 ```bash
 ./scripts/quick_start.sh
 ```
 
 ### 🔧 Instalação manual
+
+Crie o ambiente virtual:
 
 ```bash
 python -m venv venv
@@ -287,7 +294,7 @@ Instale as dependências:
 pip install -r requirements.txt
 ```
 
-Execute:
+Execute a aplicação:
 
 ```bash
 python main.py run
@@ -297,9 +304,9 @@ python main.py run
 
 | Serviço | Endereço |
 |:--|:--|
-| 🎨 Dashboard | `http://localhost:8501` |
-| 🔌 API | `http://localhost:8000` |
-| 📖 Swagger | `http://localhost:8000/docs` |
+| 🎨 **Dashboard** | `http://localhost:8501` |
+| 🔌 **API** | `http://localhost:8000` |
+| 📖 **Swagger** | `http://localhost:8000/docs` |
 
 ---
 
@@ -311,7 +318,7 @@ Execute a aplicação com:
 docker compose up --build
 ```
 
-Depois:
+Depois, acesse:
 
 ```text
 Dashboard → http://localhost:8501
@@ -340,11 +347,13 @@ python main.py dashboard
 python main.py api
 ```
 
-**Dados de demonstração:** São Paulo · Rio de Janeiro · Belo Horizonte · Curitiba · Porto Alegre
+### Dados de demonstração
+
+**São Paulo · Rio de Janeiro · Belo Horizonte · Curitiba · Porto Alegre**
 
 ---
 
-## 📁 Estrutura
+## 📁 Estrutura do projeto
 
 ```text
 real-estate-monitor/
@@ -367,6 +376,8 @@ real-estate-monitor/
 └── README.md
 ```
 
+### Responsabilidades
+
 | Diretório | Responsabilidade |
 |:--|:--|
 | `data_ingestion` | Coleta e geração de dados |
@@ -388,7 +399,7 @@ Execute:
 pytest
 ```
 
-Modo detalhado:
+Para execução detalhada:
 
 ```bash
 pytest -v
@@ -413,8 +424,6 @@ A precisão dos resultados depende da qualidade, quantidade e atualidade dos dad
 ### 🏠 Real Estate Monitor
 
 **Data-driven real estate intelligence.**
-
-<br>
 
 🐍 Python · ⚡ FastAPI · 🤖 Scikit-learn · 📊 Streamlit · 🐳 Docker
 
