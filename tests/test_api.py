@@ -37,6 +37,13 @@ class TestAPI:
         assert resp.status_code == 200
         assert "endpoints" in resp.json()
 
+    def test_health(self, client):
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "ok"
+        assert body["database"] == "ok"
+
     def test_cities(self, client):
         resp = client.get("/cities")
         assert resp.status_code == 200
@@ -77,4 +84,32 @@ class TestAPI:
 
     def test_alerts(self, client):
         resp = client.get("/alerts")
+        assert resp.status_code == 200
+
+
+class TestPipelineApiKey:
+    """POST /pipeline/run deve ficar aberto por padrão e só exigir
+    X-API-Key quando PIPELINE_API_KEY estiver configurada no ambiente."""
+
+    def test_open_by_default(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "PIPELINE_API_KEY", "")
+        resp = client.post(
+            "/pipeline/run", json={"city": "sao-paulo", "source": "demo", "n_listings": 40}
+        )
+        assert resp.status_code == 200
+
+    def test_rejects_missing_key_when_configured(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "PIPELINE_API_KEY", "secret123")
+        resp = client.post(
+            "/pipeline/run", json={"city": "sao-paulo", "source": "demo", "n_listings": 40}
+        )
+        assert resp.status_code == 401
+
+    def test_accepts_correct_key_when_configured(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "PIPELINE_API_KEY", "secret123")
+        resp = client.post(
+            "/pipeline/run",
+            json={"city": "sao-paulo", "source": "demo", "n_listings": 40},
+            headers={"X-API-Key": "secret123"},
+        )
         assert resp.status_code == 200

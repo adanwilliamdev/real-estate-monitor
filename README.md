@@ -185,7 +185,8 @@ http://localhost:8000/docs
 ### Endpoints
 
 | Método | Endpoint                    | Função                   |
-| ------ | --------------------------- | ------------------------ |
+| ------ | ---------------------------- | ------------------------ |
+| `GET`  | `/health`                    | Health check (API + banco) |
 | `GET`  | `/listings`                 | Lista imóveis            |
 | `GET`  | `/stats`                    | Estatísticas do mercado  |
 | `GET`  | `/neighborhoods`            | Dados por bairro         |
@@ -194,7 +195,27 @@ http://localhost:8000/docs
 | `GET`  | `/investment/opportunities` | Ranking de oportunidades |
 | `GET`  | `/alerts`                   | Alertas                  |
 | `GET`  | `/history/{city}`           | Histórico                |
-| `POST` | `/pipeline/run`             | Executa pipeline         |
+| `POST` | `/pipeline/run`             | Executa pipeline (protegido opcionalmente por `X-API-Key`) |
+
+### 🔒 Segurança da API (opcional)
+
+Por padrão a API roda totalmente aberta (conveniente para uso local/demo). Duas variáveis de ambiente permitem endurecer isso em produção:
+
+* `CORS_ORIGINS` — lista de origens permitidas separadas por vírgula (padrão `*`, libera tudo).
+* `PIPELINE_API_KEY` — se definida, `POST /pipeline/run` passa a exigir o header `X-API-Key` com esse valor. Esse endpoint dispara scraping e treino de ML de forma síncrona, então vale proteger antes de expor publicamente.
+
+```bash
+# .env
+CORS_ORIGINS=https://meuapp.com
+PIPELINE_API_KEY=uma-chave-secreta
+```
+
+```bash
+curl -X POST http://localhost:8000/pipeline/run \
+  -H "X-API-Key: uma-chave-secreta" \
+  -H "Content-Type: application/json" \
+  -d '{"city": "sao-paulo", "source": "demo", "n_listings": 300}'
+```
 
 ---
 
@@ -510,6 +531,8 @@ Para obter informações detalhadas:
 ```bash
 pytest -v
 ```
+
+O projeto também roda os testes automaticamente via **GitHub Actions** a cada push/PR na branch `main` (`.github/workflows/ci.yml`), em Python 3.11 e 3.12.
 
 ---
 

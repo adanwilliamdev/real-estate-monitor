@@ -68,6 +68,24 @@ class Settings:
     REDIS_URL: str = os.getenv("REDIS_URL", "")
     USE_REDIS: bool = _as_bool(os.getenv("USE_REDIS"), default=bool(os.getenv("REDIS_URL")))
 
+    # --- API (segurança) ---
+    # Origens permitidas para CORS na API REST. Por padrão libera tudo ("*"),
+    # o que é conveniente para desenvolvimento local, mas em produção defina
+    # CORS_ORIGINS como uma lista separada por vírgula, ex:
+    # CORS_ORIGINS=https://meuapp.com,https://admin.meuapp.com
+    CORS_ORIGINS: list = [
+        origin.strip()
+        for origin in os.getenv("CORS_ORIGINS", "*").split(",")
+        if origin.strip()
+    ] or ["*"]
+
+    # Chave opcional para proteger endpoints que disparam trabalho pesado
+    # (ex: POST /pipeline/run, que roda scraping + ML de forma síncrona).
+    # Se definida, a API passa a exigir o header `X-API-Key` com esse valor
+    # nesses endpoints. Deixe em branco para manter o comportamento aberto
+    # (adequado para demo/estudo, não recomendado em produção pública).
+    PIPELINE_API_KEY: str = os.getenv("PIPELINE_API_KEY", "")
+
     @classmethod
     def ensure_directories(cls) -> None:
         for directory in (cls.RAW_DATA_DIR, cls.PROCESSED_DATA_DIR, cls.CACHE_DIR, cls.LOG_DIR):

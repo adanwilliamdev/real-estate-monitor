@@ -12,13 +12,15 @@ Rodar com:
 
 Docs interativas automáticas em /docs (Swagger) e /redoc.
 """
+from datetime import datetime
 from typing import Optional
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from config.settings import settings
 from src.data_ingestion.demo_data import VALID_CITIES
 from src.data_processing.analytics import RealEstateAnalytics
 from src.data_processing.cleaner import DataCleaner
@@ -37,10 +39,21 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def require_pipeline_api_key(x_api_key: Optional[str] = Header(None)) -> None:
+    """Protege endpoints que disparam trabalho pesado (scraping/ML síncronos).
+
+    Só exige o header `X-API-Key` se `PIPELINE_API_KEY` estiver configurada
+    no ambiente; caso contrário mantém o endpoint aberto (comportamento
+    padrão, adequado para demo/estudo local).
+    """
+    if settings.PIPELINE_API_KEY and x_api_key != settings.PIPELINE_API_KEY:
+        raise HTTPException(status_code=401, detail="X-API-Key inválida ou ausente.")
 
 _cleaner = DataCleaner()
 _analytics = RealEstateAnalytics()
@@ -83,9 +96,25 @@ def root():
         "name": "Real Estate Monitor API",
         "docs": "/docs",
         "endpoints": [
-            "/listings", "/stats", "/cities", "/predict", "/investment",
+            "/health", "/listings", "/stats", "/cities", "/predict", "/investment",
             "/investment/opportunities", "/alerts", "/history/{city}", "/pipeline/run",
         ],
+    }
+
+
+@app.get("/health", tags=["meta"])
+def health():
+    """Health check simples: confirma que a API sobe e consegue falar com o banco."""
+    try:
+        DatabaseManager()
+        db_ok = True
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Health check: falha ao conectar ao banco: {exc}")
+        db_ok = False
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "database": "ok" if db_ok else "unreachable",
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 
@@ -191,9 +220,14 @@ def get_history(city: str):
     return df.to_dict(orient="records")
 
 
-@app.post("/pipeline/run", tags=["pipeline"])
+@app.post("/pipeline/run", tags=["pipeline"], dependencies=[Depends(require_pipeline_api_key)])
 def trigger_pipeline(req: PipelineRunRequest):
-    """Dispara uma execução síncrona do pipeline (coleta + limpeza + ML + alertas)."""
+    """Dispara uma execução síncrona do pipeline (coleta + limpeza + ML + alertas).
+
+    Protegido por `X-API-Key` quando `PIPELINE_API_KEY` está definida no
+    ambiente, já que roda scraping e treino de ML de forma síncrona e pode
+    ser custoso/abusável se exposto publicamente sem controle.
+    """
     try:
         result = run_pipeline(city=req.city, source=req.source, n_listings=req.n_listings)
     except Exception as exc:  # noqa: BLE001

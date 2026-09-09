@@ -343,36 +343,58 @@ class RealEstateDashboard:
         st.sidebar.markdown('<div class="side-section">Preço</div>', unsafe_allow_html=True)
         min_price = float(self.df["price"].min())
         max_price = float(self.df["price"].max())
-        price_range = st.sidebar.slider(
-            "Faixa de preço (R$)",
-            min_value=min_price,
-            max_value=max_price,
-            value=(min_price, max_price),
-            label_visibility="collapsed",
-        )
-        st.sidebar.markdown(
-            f'<div class="side-readout">{fmt_brl_compact(price_range[0])} — {fmt_brl_compact(price_range[1])}</div>',
-            unsafe_allow_html=True,
-        )
+        if min_price >= max_price:
+            # Streamlit exige min < max; com um único valor/listing, mostra
+            # um intervalo fixo em vez de quebrar a sidebar.
+            st.sidebar.markdown(
+                f'<div class="side-readout">{fmt_brl_compact(min_price)} (valor único nos dados)</div>',
+                unsafe_allow_html=True,
+            )
+            price_range = (min_price, max_price)
+        else:
+            price_range = st.sidebar.slider(
+                "Faixa de preço (R$)",
+                min_value=min_price,
+                max_value=max_price,
+                value=(min_price, max_price),
+                label_visibility="collapsed",
+            )
+            st.sidebar.markdown(
+                f'<div class="side-readout">{fmt_brl_compact(price_range[0])} — {fmt_brl_compact(price_range[1])}</div>',
+                unsafe_allow_html=True,
+            )
 
         st.sidebar.markdown('<div class="side-section">Área</div>', unsafe_allow_html=True)
         min_area = float(self.df["area"].min())
         max_area = float(self.df["area"].max())
-        area_range = st.sidebar.slider(
-            "Faixa de área (m²)",
-            min_value=min_area,
-            max_value=max_area,
-            value=(min_area, max_area),
-            label_visibility="collapsed",
-        )
-        st.sidebar.markdown(
-            f'<div class="side-readout">{area_range[0]:.0f} m² — {area_range[1]:.0f} m²</div>',
-            unsafe_allow_html=True,
-        )
+        if min_area >= max_area:
+            st.sidebar.markdown(
+                f'<div class="side-readout">{min_area:.0f} m² (valor único nos dados)</div>',
+                unsafe_allow_html=True,
+            )
+            area_range = (min_area, max_area)
+        else:
+            area_range = st.sidebar.slider(
+                "Faixa de área (m²)",
+                min_value=min_area,
+                max_value=max_area,
+                value=(min_area, max_area),
+                label_visibility="collapsed",
+            )
+            st.sidebar.markdown(
+                f'<div class="side-readout">{area_range[0]:.0f} m² — {area_range[1]:.0f} m²</div>',
+                unsafe_allow_html=True,
+            )
 
         st.sidebar.markdown('<div class="side-section">Quartos</div>', unsafe_allow_html=True)
         max_rooms = int(self.df["rooms"].max())
-        rooms = st.sidebar.slider("Número de quartos", 0, max_rooms, (0, max_rooms), label_visibility="collapsed")
+        if max_rooms <= 0:
+            st.sidebar.caption("Sem variação de quartos nos dados atuais.")
+            rooms = (0, max_rooms)
+        else:
+            rooms = st.sidebar.slider(
+                "Número de quartos", 0, max_rooms, (0, max_rooms), label_visibility="collapsed"
+            )
 
         filtered_df = self.df[
             (self.df["price"].between(*price_range))
@@ -523,8 +545,8 @@ class RealEstateDashboard:
             return
 
         st.subheader("Distribuição geográfica")
-        fig = px.scatter_mapbox(
-            map_df,
+        map_kwargs = dict(
+            data_frame=map_df,
             lat="latitude",
             lon="longitude",
             color="price_per_m2",
@@ -535,8 +557,14 @@ class RealEstateDashboard:
             color_continuous_scale=BLUE_SCALE,
             zoom=10,
             height=500,
-            mapbox_style="carto-darkmatter",
         )
+        # Plotly >= 6 renomeou `scatter_mapbox` para `scatter_map` (motor MapLibre,
+        # sem exigir token do Mapbox) e o parâmetro `mapbox_style` virou `map_style`.
+        # Detectamos em runtime para funcionar em qualquer versão >= 5.17 instalada.
+        if hasattr(px, "scatter_map"):
+            fig = px.scatter_map(map_style="carto-darkmatter", **map_kwargs)
+        else:
+            fig = px.scatter_mapbox(mapbox_style="carto-darkmatter", **map_kwargs)
         fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, paper_bgcolor=CARD)
         st.plotly_chart(fig, use_container_width=True)
 
