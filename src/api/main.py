@@ -18,9 +18,11 @@ from typing import Optional
 import pandas as pd
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, EmailStr, Field
 
 from config.settings import settings
+from src.auth.security import create_access_token, decode_access_token
 from src.data_ingestion.demo_data import VALID_CITIES
 from src.data_processing.analytics import RealEstateAnalytics
 from src.data_processing.cleaner import DataCleaner
@@ -59,6 +61,43 @@ _cleaner = DataCleaner()
 _analytics = RealEstateAnalytics()
 _investment = InvestmentAnalyzer()
 
+# -------------------- Autenticação --------------------
+_bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> dict:
+    """Exige um JWT válido (`Authorization: Bearer <token>`) e retorna o usuário."""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Não autenticado.")
+    payload = decode_access_token(credentials.credentials)
+    if not payload or "sub" not in payload:
+        raise HTTPException(status_code=401, detail="Token inválido ou expirado.")
+
+    db = DatabaseManager()
+    user = db.get_user_by_id(int(payload["sub"]))
+    if not user or not user.get("is_active", True):
+        raise HTTPException(status_code=401, detail="Usuário inválido ou inativo.")
+    return user
+
+
+def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> Optional[dict]:
+    """Como `get_current_user`, mas retorna `None` em vez de erro se não autenticado.
+
+    Usado em endpoints que funcionam tanto para visitantes quanto para
+    usuários logados (ex: `/alerts`, que mistura alertas globais e pessoais).
+    """
+    if credentials is None:
+        return None
+    payload = decode_access_token(credentials.credentials)
+    if not payload or "sub" not in payload:
+        return None
+    db = DatabaseManager()
+    return db.get_user_by_id(int(payload["sub"]))
+
 
 def _get_clean_df(city: Optional[str] = None) -> pd.DataFrame:
     db = DatabaseManager()
@@ -89,6 +128,47 @@ class PipelineRunRequest(BaseModel):
     n_listings: int = Field(300, gt=0, le=5000)
 
 
+class UserRegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8, description="Mínimo de 8 caracteres")
+    full_name: Optional[str] = None
+
+
+class UserLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class FavoriteRequest(BaseModel):
+    source: Optional[str] = None
+    source_id: Optional[str] = None
+    price: Optional[float] = None
+    area: Optional[float] = None
+    rooms: Optional[int] = None
+    bathrooms: Optional[int] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    neighborhood: Optional[str] = None
+    url: str
+    note: Optional[str] = None
+
+
+class SavedSearchRequest(BaseModel):
+    name: str
+    city: Optional[str] = None
+    neighborhood: Optional[str] = None
+    min_price: Optional[float] = Field(None, ge=0)
+    max_price: Optional[float] = Field(None, ge=0)
+    min_area: Optional[float] = Field(None, ge=0)
+    max_area: Optional[float] = Field(None, ge=0)
+    min_rooms: Optional[int] = Field(None, ge=0)
+
+
 # -------------------- Endpoints --------------------
 @app.get("/", tags=["meta"])
 def root():
@@ -98,6 +178,8 @@ def root():
         "endpoints": [
             "/health", "/listings", "/stats", "/cities", "/predict", "/investment",
             "/investment/opportunities", "/alerts", "/history/{city}", "/pipeline/run",
+            "/auth/register", "/auth/login", "/auth/me",
+            "/favorites", "/saved-searches",
         ],
     }
 
@@ -121,6 +203,33 @@ def health():
 @app.get("/cities", tags=["meta"])
 def cities():
     return {"cities": VALID_CITIES}
+
+
+# -------------------- Autenticação --------------------
+@app.post("/auth/register", tags=["auth"], response_model=TokenResponse, status_code=201)
+def register(req: UserRegisterRequest):
+    db = DatabaseManager()
+    try:
+        user = db.create_user(email=req.email, password=req.password, full_name=req.full_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    token = create_access_token(subject=str(user["id"]))
+    return TokenResponse(access_token=token)
+
+
+@app.post("/auth/login", tags=["auth"], response_model=TokenResponse)
+def login(req: UserLoginRequest):
+    db = DatabaseManager()
+    user = db.authenticate_user(email=req.email, password=req.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.")
+    token = create_access_token(subject=str(user["id"]))
+    return TokenResponse(access_token=token)
+
+
+@app.get("/auth/me", tags=["auth"])
+def me(current_user: dict = Depends(get_current_user)):
+    return current_user
 
 
 @app.get("/listings", tags=["dados"])
@@ -205,9 +314,17 @@ def investment_opportunities(city: Optional[str] = None, top_n: int = Query(10, 
 
 
 @app.get("/alerts", tags=["alertas"])
-def get_alerts(unread_only: bool = False, limit: int = Query(50, le=500)):
+def get_alerts(
+    unread_only: bool = False,
+    limit: int = Query(50, le=500),
+    current_user: Optional[dict] = Depends(get_optional_user),
+):
+    """Alertas de mercado. Sem autenticação, retorna só os alertas globais;
+    autenticado, inclui também os alertas pessoais gerados pelas suas
+    buscas salvas (veja `/saved-searches`)."""
     db = DatabaseManager()
-    df = db.get_alerts(unread_only=unread_only, limit=limit)
+    user_id = current_user["id"] if current_user else None
+    df = db.get_alerts(unread_only=unread_only, limit=limit, user_id=user_id)
     return df.to_dict(orient="records")
 
 
@@ -239,3 +356,51 @@ def trigger_pipeline(req: PipelineRunRequest):
         "alerts_generated": len(result.get("alerts", [])),
         "model": result.get("model", {}),
     }
+
+
+# -------------------- Favoritos --------------------
+@app.get("/favorites", tags=["favoritos"])
+def list_favorites(current_user: dict = Depends(get_current_user)):
+    db = DatabaseManager()
+    df = db.get_favorites(user_id=current_user["id"])
+    return df.to_dict(orient="records")
+
+
+@app.post("/favorites", tags=["favoritos"], status_code=201)
+def add_favorite(req: FavoriteRequest, current_user: dict = Depends(get_current_user)):
+    db = DatabaseManager()
+    result = db.add_favorite(user_id=current_user["id"], listing=req.model_dump(), note=req.note)
+    return result
+
+
+@app.delete("/favorites/{favorite_id}", tags=["favoritos"])
+def remove_favorite(favorite_id: int, current_user: dict = Depends(get_current_user)):
+    db = DatabaseManager()
+    removed = db.remove_favorite(user_id=current_user["id"], favorite_id=favorite_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Favorito não encontrado.")
+    return {"removed": True}
+
+
+# -------------------- Buscas salvas (alertas pessoais) --------------------
+@app.get("/saved-searches", tags=["buscas salvas"])
+def list_saved_searches(current_user: dict = Depends(get_current_user)):
+    db = DatabaseManager()
+    df = db.get_saved_searches(user_id=current_user["id"])
+    return df.to_dict(orient="records")
+
+
+@app.post("/saved-searches", tags=["buscas salvas"], status_code=201)
+def add_saved_search(req: SavedSearchRequest, current_user: dict = Depends(get_current_user)):
+    db = DatabaseManager()
+    result = db.add_saved_search(user_id=current_user["id"], **req.model_dump(exclude={"name"}), name=req.name)
+    return result
+
+
+@app.delete("/saved-searches/{search_id}", tags=["buscas salvas"])
+def remove_saved_search(search_id: int, current_user: dict = Depends(get_current_user)):
+    db = DatabaseManager()
+    removed = db.delete_saved_search(user_id=current_user["id"], search_id=search_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Busca salva não encontrada.")
+    return {"removed": True}

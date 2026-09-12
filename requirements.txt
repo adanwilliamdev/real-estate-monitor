@@ -23,6 +23,10 @@ fastapi>=0.110.0
 uvicorn>=0.27.0
 pydantic>=2.5.0
 
+# --- Autenticação (usuários, favoritos, alertas pessoais) ---
+pyjwt>=2.8.0
+email-validator>=2.1.0
+
 # --- Utilidades ---
 python-dotenv>=1.0.0
 loguru>=0.7.0

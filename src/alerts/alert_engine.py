@@ -32,7 +32,7 @@ class AlertEngine:
         self.anomaly_ratio_threshold = anomaly_ratio_threshold
 
     def evaluate(self, df: pd.DataFrame, db: DatabaseManager) -> List[Dict]:
-        """Avalia o DataFrame limpo (pós-pipeline) e retorna alertas gerados."""
+        """Avalia o DataFrame limpo (pós-pipeline) e retorna alertas globais gerados."""
         alerts: List[Dict] = []
         if df is None or df.empty:
             return alerts
@@ -42,8 +42,97 @@ class AlertEngine:
 
         if alerts:
             db.save_alerts(alerts)
-            logger.info(f"{len(alerts)} alerta(s) gerado(s)")
+            logger.info(f"{len(alerts)} alerta(s) global(is) gerado(s)")
         return alerts
+
+    def evaluate_saved_searches(self, df: pd.DataFrame, db: DatabaseManager) -> List[Dict]:
+        """Confere as buscas salvas (alertas pessoais) de todos os usuários
+        contra o lote de anúncios coletado nesta execução do pipeline.
+
+        Gera um alerta pessoal (`user_id` preenchido) quando o número de
+        imóveis compatíveis com os critérios de uma busca aumenta em
+        relação à última execução — evita repetir o mesmo alerta a cada
+        rodada quando nada de novo aparece.
+        """
+        alerts: List[Dict] = []
+        if df is None or df.empty:
+            return alerts
+
+        searches = db.get_all_active_saved_searches()
+        if searches.empty:
+            return alerts
+
+        for _, search in searches.iterrows():
+            matches = self._filter_by_search(df, search)
+            match_count = len(matches)
+            previous_count = int(search.get("last_match_count") or 0)
+
+            if match_count > 0 and match_count != previous_count:
+                avg_price = matches["price"].mean() if "price" in matches.columns else None
+                alerts.append(
+                    {
+                        "severity": "info",
+                        "category": "saved_search_match",
+                        "city": search.get("city"),
+                        "neighborhood": search.get("neighborhood"),
+                        "message": (
+                            f"{match_count} imóvel(is) encontrados para a busca salva "
+                            f"'{search.get('name')}'"
+                            + (f" (preço médio R$ {avg_price:,.0f})." if avg_price else ".")
+                        ),
+                        "value": float(match_count),
+                        "user_id": int(search["user_id"]),
+                        "saved_search_id": int(search["id"]),
+                    }
+                )
+
+            db.update_saved_search_match_count(int(search["id"]), match_count)
+
+        if alerts:
+            db.save_alerts(alerts)
+            logger.info(f"{len(alerts)} alerta(s) pessoal(is) gerado(s)")
+        return alerts
+
+    @staticmethod
+    def _filter_by_search(df: pd.DataFrame, search: pd.Series) -> pd.DataFrame:
+        """Filtra o DataFrame de anúncios pelos critérios de uma `SavedSearch`."""
+        result = df
+
+        def _get(field):
+            value = search.get(field)
+            return None if value is None or pd.isna(value) else value
+
+        city = _get("city")
+        if city and "city" in result.columns:
+            result = result[result["city"].str.contains(str(city), case=False, na=False)]
+
+        neighborhood = _get("neighborhood")
+        if neighborhood and "neighborhood" in result.columns:
+            result = result[
+                result["neighborhood"].str.contains(str(neighborhood), case=False, na=False)
+            ]
+
+        min_price = _get("min_price")
+        if min_price is not None and "price" in result.columns:
+            result = result[result["price"] >= min_price]
+
+        max_price = _get("max_price")
+        if max_price is not None and "price" in result.columns:
+            result = result[result["price"] <= max_price]
+
+        min_area = _get("min_area")
+        if min_area is not None and "area" in result.columns:
+            result = result[result["area"] >= min_area]
+
+        max_area = _get("max_area")
+        if max_area is not None and "area" in result.columns:
+            result = result[result["area"] <= max_area]
+
+        min_rooms = _get("min_rooms")
+        if min_rooms is not None and "rooms" in result.columns:
+            result = result[result["rooms"] >= min_rooms]
+
+        return result
 
     def _check_price_changes(self, df: pd.DataFrame, db: DatabaseManager) -> List[Dict]:
         alerts: List[Dict] = []

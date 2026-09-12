@@ -15,6 +15,7 @@ e da paleta dos gráficos Plotly.
 """
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Garante que a raiz do projeto esteja no sys.path ao rodar via `streamlit run`
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
@@ -249,11 +250,29 @@ def load_history() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def load_alerts() -> pd.DataFrame:
+def load_alerts(user_id: Optional[int] = None) -> pd.DataFrame:
     try:
-        return DatabaseManager().get_alerts(limit=50)
+        return DatabaseManager().get_alerts(limit=50, user_id=user_id)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"Erro ao carregar alertas: {exc}")
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_favorites(user_id: int) -> pd.DataFrame:
+    try:
+        return DatabaseManager().get_favorites(user_id=user_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Erro ao carregar favoritos: {exc}")
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_saved_searches(user_id: int) -> pd.DataFrame:
+    try:
+        return DatabaseManager().get_saved_searches(user_id=user_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Erro ao carregar buscas salvas: {exc}")
         return pd.DataFrame()
 
 
@@ -283,7 +302,8 @@ class RealEstateDashboard:
     def __init__(self):
         self.df = load_data()
         self.history = load_history()
-        self.alerts_df = load_alerts()
+        self.user = self._current_user()
+        self.alerts_df = load_alerts(user_id=self.user["id"] if self.user else None)
         self.stats = {}
         self.cleaner = DataCleaner()
         self.analytics = RealEstateAnalytics()
@@ -291,6 +311,52 @@ class RealEstateDashboard:
         if not self.df.empty:
             self.stats = self.cleaner.calculate_market_metrics(self.df)
         self.deltas = self._compute_deltas()
+
+    # -------------------- Conta (login/registro) --------------------
+    @staticmethod
+    def _current_user() -> Optional[dict]:
+        return st.session_state.get("user")
+
+    def render_account_sidebar(self) -> None:
+        """Bloco de login/registro/logout no topo da sidebar."""
+        st.sidebar.markdown('<div class="side-section">Minha conta</div>', unsafe_allow_html=True)
+
+        if self.user:
+            st.sidebar.markdown(f"Logado como **{self.user['email']}**")
+            if st.sidebar.button("Sair", use_container_width=True):
+                st.session_state.pop("user", None)
+                st.rerun()
+            return
+
+        login_tab, register_tab = st.sidebar.tabs(["Entrar", "Criar conta"])
+        db = DatabaseManager()
+
+        with login_tab:
+            email = st.text_input("E-mail", key="login_email")
+            password = st.text_input("Senha", type="password", key="login_password")
+            if st.button("Entrar", key="login_btn", use_container_width=True):
+                user = db.authenticate_user(email=email, password=password)
+                if user:
+                    st.session_state["user"] = user
+                    st.rerun()
+                else:
+                    st.sidebar.error("E-mail ou senha inválidos.")
+
+        with register_tab:
+            new_email = st.text_input("E-mail", key="register_email")
+            new_password = st.text_input(
+                "Senha (mín. 8 caracteres)", type="password", key="register_password"
+            )
+            if st.button("Criar conta", key="register_btn", use_container_width=True):
+                if len(new_password or "") < 8:
+                    st.sidebar.error("A senha precisa ter pelo menos 8 caracteres.")
+                else:
+                    try:
+                        user = db.create_user(email=new_email, password=new_password)
+                        st.session_state["user"] = user
+                        st.rerun()
+                    except ValueError as exc:
+                        st.sidebar.error(str(exc))
 
     def _compute_deltas(self) -> dict:
         """Variação percentual dos indicadores de mercado vs. a coleta anterior,
@@ -327,6 +393,9 @@ class RealEstateDashboard:
             '<div class="brand-sub">Market Intelligence</div></div>',
             unsafe_allow_html=True,
         )
+
+        self.render_account_sidebar()
+        st.sidebar.markdown("---")
 
         if self.df.empty:
             st.sidebar.markdown('<div class="side-section">Filtros</div>', unsafe_allow_html=True)
@@ -776,6 +845,123 @@ class RealEstateDashboard:
         else:
             st.dataframe(ranked, use_container_width=True, hide_index=True)
 
+    # -------------------- Conta: favoritos & buscas salvas --------------------
+    def render_account_tab(self):
+        if not self.user:
+            st.info(
+                "Entre ou crie uma conta na barra lateral para salvar imóveis favoritos "
+                "e criar buscas com alertas pessoais (avisos quando surgirem imóveis "
+                "compatíveis com seus critérios)."
+            )
+            return
+
+        user_id = self.user["id"]
+        db = DatabaseManager()
+
+        col_fav, col_search = st.columns(2)
+
+        # ---- Favoritos ----
+        with col_fav:
+            st.markdown("#### ★ Favoritos")
+            with st.form("add_favorite_form", clear_on_submit=True):
+                st.caption("Salve um imóvel manualmente pela URL do anúncio.")
+                url = st.text_input("URL do anúncio *")
+                fcol1, fcol2 = st.columns(2)
+                with fcol1:
+                    price = st.number_input("Preço (R$)", min_value=0.0, step=10_000.0)
+                    city = st.text_input("Cidade")
+                with fcol2:
+                    area = st.number_input("Área (m²)", min_value=0.0, step=5.0)
+                    neighborhood = st.text_input("Bairro")
+                note = st.text_input("Nota (opcional)")
+                if st.form_submit_button("Adicionar aos favoritos", use_container_width=True):
+                    if not url:
+                        st.error("Informe a URL do anúncio.")
+                    else:
+                        db.add_favorite(
+                            user_id=user_id,
+                            listing={
+                                "url": url, "price": price or None, "area": area or None,
+                                "city": city or None, "neighborhood": neighborhood or None,
+                            },
+                            note=note or None,
+                        )
+                        load_favorites.clear()
+                        st.success("Favorito salvo.")
+                        st.rerun()
+
+            favorites = load_favorites(user_id)
+            if favorites.empty:
+                st.caption("Nenhum favorito salvo ainda.")
+            else:
+                for _, row in favorites.iterrows():
+                    with st.container():
+                        st.markdown(
+                            f"**{row.get('neighborhood') or '—'}, {row.get('city') or '—'}** — "
+                            f"{fmt_brl(row['price']) if row.get('price') else '—'}"
+                        )
+                        st.caption(row.get("url", ""))
+                        if st.button("Remover", key=f"rm_fav_{row['id']}"):
+                            db.remove_favorite(user_id=user_id, favorite_id=int(row["id"]))
+                            load_favorites.clear()
+                            st.rerun()
+                        st.markdown("---")
+
+        # ---- Buscas salvas ----
+        with col_search:
+            st.markdown("#### 🔔 Buscas salvas (alertas pessoais)")
+            st.caption(
+                "A cada coleta de dados, você recebe um alerta pessoal (aba Histórico) "
+                "quando aparecem imóveis novos compatíveis com os critérios abaixo."
+            )
+            cities_available = sorted(self.df["city"].dropna().unique()) if not self.df.empty else VALID_CITIES
+            with st.form("add_search_form", clear_on_submit=True):
+                name = st.text_input("Nome da busca *", placeholder="Ex: Apto 2 quartos em Pinheiros")
+                scol1, scol2 = st.columns(2)
+                with scol1:
+                    search_city = st.selectbox("Cidade", ["(qualquer)"] + list(cities_available))
+                    max_price = st.number_input("Preço máximo (R$)", min_value=0.0, step=10_000.0)
+                    min_rooms = st.number_input("Quartos mínimo", min_value=0, step=1)
+                with scol2:
+                    search_neighborhood = st.text_input("Bairro (opcional)")
+                    min_price = st.number_input("Preço mínimo (R$)", min_value=0.0, step=10_000.0)
+                if st.form_submit_button("Salvar busca", use_container_width=True):
+                    if not name:
+                        st.error("Dê um nome para a busca.")
+                    else:
+                        db.add_saved_search(
+                            user_id=user_id,
+                            name=name,
+                            city=None if search_city == "(qualquer)" else search_city,
+                            neighborhood=search_neighborhood or None,
+                            min_price=min_price or None,
+                            max_price=max_price or None,
+                            min_rooms=int(min_rooms) or None,
+                        )
+                        load_saved_searches.clear()
+                        st.success("Busca salva.")
+                        st.rerun()
+
+            searches = load_saved_searches(user_id)
+            if searches.empty:
+                st.caption("Nenhuma busca salva ainda.")
+            else:
+                for _, row in searches.iterrows():
+                    criteria = []
+                    if row.get("city"):
+                        criteria.append(str(row["city"]))
+                    if row.get("neighborhood"):
+                        criteria.append(str(row["neighborhood"]))
+                    if row.get("max_price"):
+                        criteria.append(f"até {fmt_brl(row['max_price'])}")
+                    st.markdown(f"**{row['name']}** — {', '.join(criteria) or 'sem filtros'}")
+                    st.caption(f"Última verificação: {int(row.get('last_match_count') or 0)} imóvel(is) compatível(is)")
+                    if st.button("Excluir", key=f"rm_search_{row['id']}"):
+                        db.delete_saved_search(user_id=user_id, search_id=int(row["id"]))
+                        load_saved_searches.clear()
+                        st.rerun()
+                    st.markdown("---")
+
     # -------------------- Histórico & Alertas --------------------
     def render_history_and_alerts(self):
         st.subheader("Histórico de mercado")
@@ -799,10 +985,13 @@ class RealEstateDashboard:
 
         st.markdown("---")
         st.subheader("Alertas de mercado")
-        st.caption(
+        caption = (
             "Gerados automaticamente a cada coleta: variações relevantes de preço por m² "
             "e picos de anomalias, comparando com a coleta anterior."
         )
+        if self.user:
+            caption += " Inclui também seus alertas pessoais (aba Conta)."
+        st.caption(caption)
         if self.alerts_df.empty:
             st.success("Nenhum alerta registrado ainda.")
             return
@@ -811,6 +1000,8 @@ class RealEstateDashboard:
         for _, row in self.alerts_df.iterrows():
             severity = row.get("severity", "info")
             tag = severity_labels.get(severity, "INFORMATIVO")
+            if row.get("user_id"):
+                tag = f"PESSOAL · {tag}"
             when = pd.to_datetime(row["created_at"]).strftime("%d/%m/%Y %H:%M")
             st.markdown(
                 f'<div class="alert-row {severity}">'
@@ -834,8 +1025,8 @@ class RealEstateDashboard:
             )
             return
 
-        tab_overview, tab_map, tab_analytics, tab_ml, tab_invest, tab_history = st.tabs(
-            ["Overview", "Mapa", "Análise", "Previsão", "Investimento", "Histórico"]
+        tab_overview, tab_map, tab_analytics, tab_ml, tab_invest, tab_history, tab_account = st.tabs(
+            ["Overview", "Mapa", "Análise", "Previsão", "Investimento", "Histórico", "Conta"]
         )
 
         with tab_overview:
@@ -859,6 +1050,9 @@ class RealEstateDashboard:
 
         with tab_history:
             self.render_history_and_alerts()
+
+        with tab_account:
+            self.render_account_tab()
 
         st.markdown("---")
         st.caption("Monitor de Mercado Imobiliário · Streamlit + FastAPI + scikit-learn")

@@ -113,3 +113,94 @@ class TestPipelineApiKey:
             headers={"X-API-Key": "secret123"},
         )
         assert resp.status_code == 200
+
+
+class TestAuthFlow:
+    """Registro, login e acesso a rotas protegidas (favoritos/buscas salvas)."""
+
+    def _register_and_login(self, client, email="user@example.com", password="senhaSegura1"):
+        resp = client.post("/auth/register", json={"email": email, "password": password})
+        assert resp.status_code == 201
+        return resp.json()["access_token"]
+
+    def _auth_header(self, token):
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_register_and_login(self, client):
+        token = self._register_and_login(client, email="alice@example.com")
+        assert token
+
+        resp = client.post(
+            "/auth/login", json={"email": "alice@example.com", "password": "senhaSegura1"}
+        )
+        assert resp.status_code == 200
+        assert "access_token" in resp.json()
+
+    def test_login_with_wrong_password_fails(self, client):
+        self._register_and_login(client, email="bob@example.com")
+        resp = client.post("/auth/login", json={"email": "bob@example.com", "password": "errada"})
+        assert resp.status_code == 401
+
+    def test_duplicate_registration_fails(self, client):
+        self._register_and_login(client, email="carol@example.com")
+        resp = client.post(
+            "/auth/register", json={"email": "carol@example.com", "password": "outraSenha1"}
+        )
+        assert resp.status_code == 409
+
+    def test_me_requires_token(self, client):
+        assert client.get("/auth/me").status_code == 401
+
+    def test_me_returns_current_user(self, client):
+        token = self._register_and_login(client, email="dave@example.com")
+        resp = client.get("/auth/me", headers=self._auth_header(token))
+        assert resp.status_code == 200
+        assert resp.json()["email"] == "dave@example.com"
+
+    def test_favorites_require_auth(self, client):
+        assert client.get("/favorites").status_code == 401
+        assert client.post("/favorites", json={"url": "https://x.com/1"}).status_code == 401
+
+    def test_favorites_crud(self, client):
+        token = self._register_and_login(client, email="erin@example.com")
+        headers = self._auth_header(token)
+
+        resp = client.post(
+            "/favorites",
+            json={"url": "https://x.com/imovel/1", "price": 500000, "city": "São Paulo"},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+        favorite_id = resp.json()["id"]
+
+        resp = client.get("/favorites", headers=headers)
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+
+        resp = client.delete(f"/favorites/{favorite_id}", headers=headers)
+        assert resp.status_code == 200
+        assert client.get("/favorites", headers=headers).json() == []
+
+    def test_saved_searches_crud(self, client):
+        token = self._register_and_login(client, email="frank@example.com")
+        headers = self._auth_header(token)
+
+        resp = client.post(
+            "/saved-searches",
+            json={"name": "Apto em Pinheiros", "city": "São Paulo", "max_price": 700000},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+        search_id = resp.json()["id"]
+
+        resp = client.get("/saved-searches", headers=headers)
+        assert resp.status_code == 200
+        assert resp.json()[0]["name"] == "Apto em Pinheiros"
+
+        resp = client.delete(f"/saved-searches/{search_id}", headers=headers)
+        assert resp.status_code == 200
+
+    def test_alerts_endpoint_works_with_and_without_auth(self, client):
+        token = self._register_and_login(client, email="grace@example.com")
+        assert client.get("/alerts").status_code == 200
+        assert client.get("/alerts", headers=self._auth_header(token)).status_code == 200

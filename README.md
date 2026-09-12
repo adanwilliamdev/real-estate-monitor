@@ -24,6 +24,7 @@ O projeto combina **Data Science, Machine Learning e engenharia de software** em
 - Detecção de anomalias e oportunidades
 - Clusterização de imóveis com K-Means
 - Análises por cidade e bairro
+- Contas de usuário: favoritos e buscas salvas com alertas pessoais
 - API REST com FastAPI
 - Dashboard com Streamlit
 
@@ -55,11 +56,50 @@ Métricas disponíveis:
 | `POST` | `/predict` | Previsão de preço |
 | `POST` | `/investment` | Análise de investimento |
 | `GET` | `/investment/opportunities` | Oportunidades |
-| `GET` | `/alerts` | Alertas |
+| `GET` | `/alerts` | Alertas (globais; inclui pessoais se autenticado) |
 | `GET` | `/history/{city}` | Histórico |
 | `POST` | `/pipeline/run` | Executa o pipeline |
+| `POST` | `/auth/register` | Cria uma conta |
+| `POST` | `/auth/login` | Login (retorna token JWT) |
+| `GET` | `/auth/me` | Dados do usuário autenticado |
+| `GET`/`POST`/`DELETE` | `/favorites` | Imóveis favoritados pelo usuário |
+| `GET`/`POST`/`DELETE` | `/saved-searches` | Buscas salvas (alertas pessoais) |
 
 Documentação: `http://localhost:8000/docs`
+
+### Autenticação
+
+Contas de usuário permitem salvar imóveis favoritos e criar **buscas salvas**:
+critérios (cidade, bairro, faixa de preço, quartos mínimos) que são
+reavaliados a cada execução do pipeline — quando surgem imóveis novos
+compatíveis, um alerta pessoal é gerado e aparece tanto no dashboard
+(aba **Conta** / aba **Histórico**) quanto em `GET /alerts`.
+
+```bash
+# Criar conta (retorna access_token)
+curl -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "voce@example.com", "password": "senhaSegura1"}'
+
+# Login
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "voce@example.com", "password": "senhaSegura1"}'
+
+# Endpoints protegidos usam o token no header Authorization
+curl http://localhost:8000/favorites \
+  -H "Authorization: Bearer <access_token>"
+
+curl -X POST http://localhost:8000/saved-searches \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Apto em Pinheiros", "city": "São Paulo", "neighborhood": "Pinheiros", "max_price": 700000}'
+```
+
+Senhas são armazenadas com hash PBKDF2-HMAC-SHA256 (salt aleatório por
+usuário); os tokens são JWT assinados com `SECRET_KEY`. **Defina uma
+`SECRET_KEY` própria no `.env` antes de usar em produção** — veja
+`.env.example`.
 
 ## Execução
 
@@ -119,6 +159,7 @@ real-estate-monitor/
 │   ├── data_processing/
 │   ├── data_storage/
 │   ├── alerts/
+│   ├── auth/
 │   ├── orchestration/
 │   ├── api/
 │   └── visualization/
@@ -157,6 +198,13 @@ Quando configurada, a chave é enviada no header:
 
 ```http
 X-API-Key: uma-chave-secreta
+```
+
+Para autenticação de usuários, defina também uma chave própria para assinar
+os tokens JWT (veja `.env.example`):
+
+```env
+SECRET_KEY=troque-por-uma-chave-aleatoria-forte
 ```
 
 ## Disclaimer

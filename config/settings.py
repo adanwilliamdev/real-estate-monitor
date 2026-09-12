@@ -86,6 +86,14 @@ class Settings:
     # (adequado para demo/estudo, não recomendado em produção pública).
     PIPELINE_API_KEY: str = os.getenv("PIPELINE_API_KEY", "")
 
+    # --- Autenticação (usuários, favoritos, alertas pessoais) ---
+    # Chave usada para assinar os tokens JWT emitidos em /auth/login.
+    # IMPORTANTE: defina SECRET_KEY no .env em produção; o valor padrão
+    # abaixo é adequado apenas para demo/estudo local.
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-key-troque-em-producao")
+    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+
     @classmethod
     def ensure_directories(cls) -> None:
         for directory in (cls.RAW_DATA_DIR, cls.PROCESSED_DATA_DIR, cls.CACHE_DIR, cls.LOG_DIR):

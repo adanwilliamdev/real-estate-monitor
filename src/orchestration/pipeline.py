@@ -136,6 +136,7 @@ def run_pipeline(
         try:
             alert_engine = AlertEngine()
             alerts = alert_engine.evaluate(df_enriched, db)
+            alerts += alert_engine.evaluate_saved_searches(df_enriched, db)
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Falha ao avaliar alertas: {exc}")
 
