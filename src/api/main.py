@@ -265,7 +265,7 @@ def get_listings(
         df = df[df["price"] <= max_price]
 
     df = df.head(limit)
-    return {"count": len(df), "listings": df.to_dict(orient="records")}
+    return {"count": len(df), "listings": df_to_records(df)}
 
 
 @app.get("/stats", tags=["dados"])
@@ -282,7 +282,7 @@ def get_neighborhood_stats(city: Optional[str] = None):
     if df.empty:
         raise HTTPException(status_code=404, detail="Sem dados. Rode o pipeline primeiro.")
     stats = _cleaner.calculate_neighborhood_stats(df)
-    return stats.reset_index().to_dict(orient="records")
+    return df_to_records(stats.reset_index())
 
 
 @app.post("/predict", tags=["ml"])
@@ -378,7 +378,7 @@ def get_alerts(
     db = DatabaseManager()
     user_id = current_user["id"] if current_user else None
     df = db.get_alerts(unread_only=unread_only, limit=limit, user_id=user_id)
-    return df.to_dict(orient="records")
+    return df_to_records(df)
 
 
 @app.get("/history/{city}", tags=["historico"])
@@ -387,7 +387,7 @@ def get_history(city: str):
     df = db.get_snapshots(city=city)
     if df.empty:
         raise HTTPException(status_code=404, detail=f"Sem histórico para '{city}' ainda.")
-    return df.to_dict(orient="records")
+    return df_to_records(df)
 
 
 @app.post("/pipeline/run", tags=["pipeline"], dependencies=[Depends(require_pipeline_api_key)])
@@ -418,7 +418,7 @@ def trigger_pipeline(req: PipelineRunRequest):
 def list_favorites(current_user: dict = Depends(get_current_user)):
     db = DatabaseManager()
     df = db.get_favorites(user_id=current_user["id"])
-    return df.to_dict(orient="records")
+    return df_to_records(df)
 
 
 @app.post("/favorites", tags=["favoritos"], status_code=201)
@@ -442,7 +442,7 @@ def remove_favorite(favorite_id: int, current_user: dict = Depends(get_current_u
 def list_saved_searches(current_user: dict = Depends(get_current_user)):
     db = DatabaseManager()
     df = db.get_saved_searches(user_id=current_user["id"])
-    return df.to_dict(orient="records")
+    return df_to_records(df)
 
 
 @app.post("/saved-searches", tags=["buscas salvas"], status_code=201)

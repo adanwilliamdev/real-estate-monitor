@@ -1,362 +1,154 @@
 <div align="center">
 
-# 🏠 Real Estate Monitor
+# Real Estate Monitor
 
-### Inteligência imobiliária orientada por dados
-
-Análise de preços · Machine Learning · Oportunidades · Investimentos · Monitoramento
-
-<br>
-
-![Python](https://img.shields.io/badge/Python-3.x-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-REST-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![Scikit-learn](https://img.shields.io/badge/Scikit--learn-ML-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Container-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+**Inteligência imobiliária orientada por dados**
 
 </div>
 
 ---
 
-## 📌 Sobre o projeto
+## Sobre
 
-O **Real Estate Monitor** é uma plataforma de inteligência de mercado imobiliário desenvolvida para analisar **preços, tendências, oportunidades e indicadores de investimento**.
+O **Real Estate Monitor** é uma plataforma de inteligência de mercado imobiliário para análise de preços, tendências e oportunidades de investimento.
 
-O projeto combina **Data Science, Machine Learning e Engenharia de Software** em uma arquitetura modular composta por:
+O projeto combina **Data Science, Machine Learning e engenharia de software** em uma aplicação modular com API REST, dashboard interativo e pipeline de dados.
 
-- API REST
-- Dashboard interativo
-- Pipeline de dados
-- Modelos de Machine Learning
-- Motor de oportunidades
-- Monitoramento de alterações no mercado
-- Sistema de autenticação e alertas personalizados
+> **Demo:** utiliza SQLite e dados sintéticos realistas. A coleta de dados reais possui fallback automático para dados de demonstração.
 
-> **Demo:** o projeto utiliza SQLite e dados sintéticos realistas. A coleta de dados reais possui fallback automático para dados de demonstração.
-
----
-
-## 🚀 Funcionalidades
-
-### 📊 Análise de mercado
+## Funcionalidades
 
 - Análise de preços e tendências
-- Estatísticas por cidade e bairro
-- Histórico de preços
+- Previsão de preços com validação cruzada, baseline e intervalo calibrado
+- **Motor de oportunidades**: desconto sobre o valor justo, score 0-100 e motivo
+- **Monitoramento**: anúncios novos, retirados e reduções de preço entre coletas
+- Análise de investimento: ROI, yield e payback
 - Detecção de anomalias
 - Clusterização de imóveis com K-Means
+- Análises por cidade e bairro
+- Contas de usuário: favoritos e buscas salvas com alertas pessoais
+- API REST com FastAPI
+- Dashboard com Streamlit
 
-### 🤖 Machine Learning
+## Stack
 
-- Previsão de preços
-- Validação cruzada K-Fold
-- Comparação entre modelos e baseline
-- Métricas de avaliação
-- Intervalo de previsão calibrado
-- Detecção de cidades e bairros não observados no treinamento
+`Python` · `FastAPI` · `Pandas` · `NumPy` · `Scikit-learn` · `SQLite` · `PostgreSQL` · `Streamlit` · `Plotly` · `Docker`
 
-### 💰 Oportunidades de investimento
+## Machine Learning
 
-- Estimativa de valor justo
-- Cálculo de desconto sobre o valor justo
-- Score de oportunidade de `0–100`
-- Identificação automática do motivo da oportunidade
-- Análise de ROI
-- Yield líquido
-- Payback
-- Ranking de oportunidades
+Alvo: `log(R$/m²)`. Features: **área · quartos · banheiros · cidade · bairro**
+(+ área/quarto e banheiro/quarto). Três candidatos competem em validação
+cruzada K-Fold: **baseline** (mediana de R$/m² do bairro), Random Forest e
+Gradient Boosting. Vence o de menor MAPE, então o sistema nunca entrega algo
+pior que a regra trivial.
 
-### 🔎 Monitoramento
+- Métricas out-of-fold: R², MAPE, MAE, `baseline_mape`, `best_ml_mape`, `ml_beats_baseline`
+- Intervalo de ~90% **calibrado** (conformal, a partir dos erros reais fora da amostra)
+- Aviso quando cidade/bairro não foi visto no treino
 
-- Identificação de novos anúncios
-- Identificação de anúncios retirados
-- Detecção de reduções de preço
-- Histórico entre coletas
-- Alertas automáticos
-- Buscas salvas com alertas personalizados
+> **Nos dados sintéticos o baseline costuma vencer**: o gerador define o R$/m²
+> só pelo bairro, então a regra do bairro já é quase o preditor ótimo. Com dados
+> reais (andar, idade, vagas...) espera-se que o ML ganhe; o relatório do
+> pipeline mostra quem venceu.
 
-### 👤 Usuários
+## Oportunidades
 
-- Cadastro e autenticação
-- Login com JWT
-- Favoritos
-- Buscas salvas
-- Alertas personalizados
-- Área de conta no dashboard
+`OpportunityFinder` estima o **valor justo** de cada anúncio (previsão
+out-of-fold, o modelo nunca vê o próprio anúncio), mede o desconto, cruza com o
+yield líquido (aluguel estimado sobre o valor justo) e gera um score 0-100 com o
+motivo. Descontos >= 40% vêm com `needs_review`: costumam ser erro de preço ou
+golpe, não pechincha.
 
----
+## Monitoramento
 
-## 🧠 Machine Learning
+O pipeline atualiza **apenas as cidades coletadas** e compara com a coleta
+anterior: anúncios novos, retirados e reduções de preço viram alertas (um por
+tipo e cidade). Buscas salvas alertam quando surgem imóveis *novos* compatíveis.
+No modo `demo`, o mercado **evolui** entre execuções (vendidos, novos, cortes de
+preço), em vez de ser regerado do zero.
 
-O modelo tem como alvo:
-
-```text
-log(R$/m²)
-```
-
-### Features utilizadas
-
-- Área
-- Quartos
-- Banheiros
-- Cidade
-- Bairro
-- Área por quarto
-- Banheiros por quarto
-
-Durante o treinamento, três candidatos competem utilizando **validação cruzada K-Fold**:
-
-| Modelo | Descrição |
-|---|---|
-| Baseline | Mediana de R$/m² do bairro |
-| Random Forest | Modelo de ensemble baseado em árvores |
-| Gradient Boosting | Modelo de boosting baseado em árvores |
-
-O modelo vencedor é definido pelo **menor MAPE**, garantindo que o Machine Learning não seja utilizado automaticamente quando uma regra simples apresenta desempenho superior.
-
-### Métricas
-
-O pipeline disponibiliza:
-
-- `R²`
-- `MAPE`
-- `MAE`
-- `baseline_mape`
-- `best_ml_mape`
-- `ml_beats_baseline`
-
-Também é calculado um intervalo de aproximadamente **90%**, calibrado a partir dos erros reais fora da amostra utilizando uma abordagem conformal.
-
-> **Nota:** nos dados sintéticos, o baseline costuma vencer porque o gerador define o R$/m² principalmente pelo bairro. Com dados reais, novas variáveis como andar, idade, vagas, conservação e localização podem permitir que os modelos de Machine Learning apresentem desempenho superior.
-
----
-
-## 🎯 Motor de oportunidades
-
-O `OpportunityFinder` estima o **valor justo** de cada anúncio utilizando previsões out-of-fold.
-
-Isso evita que o modelo utilize o próprio anúncio para avaliar sua oportunidade.
-
-O sistema calcula:
-
-```text
-Valor justo
-      ↓
-Preço anunciado
-      ↓
-Desconto
-      ↓
-Yield líquido
-      ↓
-Score 0–100
-      ↓
-Motivo da oportunidade
-```
-
-Descontos iguais ou superiores a **40%** recebem a marcação:
-
-```text
-needs_review
-```
-
-Isso ocorre porque descontos extremos podem representar erros de cadastro, dados inconsistentes ou anúncios suspeitos, e não necessariamente uma oportunidade real.
-
----
-
-## 📡 Monitoramento do mercado
-
-O pipeline compara a coleta atual com a coleta anterior para identificar alterações.
-
-São monitorados:
-
-- 🆕 Novos anúncios
-- ❌ Anúncios retirados
-- 📉 Reduções de preço
-- 🔔 Alertas por cidade
-- 🔎 Novos imóveis compatíveis com buscas salvas
-
-No modo `demo`, o mercado **evolui entre as execuções**, simulando alterações reais como:
-
-- novos imóveis
-- imóveis vendidos
-- redução de preços
-- anúncios removidos
-
-Isso evita que cada execução simplesmente recrie o mesmo conjunto de dados.
-
----
-
-## 🔐 Autenticação
-
-O sistema possui autenticação baseada em **JWT**.
-
-As senhas são armazenadas utilizando:
-
-```text
-PBKDF2-HMAC-SHA256
-```
-
-com salt aleatório por usuário.
-
-Os tokens JWT são assinados utilizando uma `SECRET_KEY`.
-
-> ⚠️ Para produção, configure uma `SECRET_KEY` própria e forte no arquivo `.env`.
-
-### Criar uma conta
-
-```bash
-curl -X POST http://localhost:8000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "voce@example.com", "password": "senhaSegura1"}'
-```
-
-### Login
-
-```bash
-curl -X POST http://localhost:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "voce@example.com", "password": "senhaSegura1"}'
-```
-
-### Acessar favoritos
-
-```bash
-curl http://localhost:8000/favorites \
-  -H "Authorization: Bearer <access_token>"
-```
-
-### Criar uma busca salva
-
-```bash
-curl -X POST http://localhost:8000/saved-searches \
-  -H "Authorization: Bearer <access_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Apto em Pinheiros", "city": "São Paulo", "neighborhood": "Pinheiros", "max_price": 700000}'
-```
-
----
-
-## 🔌 API REST
-
-A API é construída com **FastAPI** e possui documentação automática através do Swagger.
-
-### Principais endpoints
+## API
 
 | Método | Endpoint | Descrição |
-|:---:|---|---|
+|:--:|:--|:--|
 | `GET` | `/health` | Health check |
 | `GET` | `/listings` | Lista imóveis |
 | `GET` | `/stats` | Estatísticas |
 | `GET` | `/neighborhoods` | Dados por bairro |
 | `POST` | `/predict` | Previsão de preço |
 | `POST` | `/investment` | Análise de investimento |
-| `GET` | `/investment/opportunities` | Ranking por yield |
-| `GET` | `/opportunities` | Imóveis abaixo do valor justo |
-| `GET` | `/alerts` | Alertas |
-| `GET` | `/history/{city}` | Histórico por cidade |
+| `GET` | `/investment/opportunities` | Ranking por yield (aluguel sobre valor justo) |
+| `GET` | `/opportunities` | Abaixo do valor justo: score, desconto e motivo |
+| `GET` | `/alerts` | Alertas (globais; inclui pessoais se autenticado) |
+| `GET` | `/history/{city}` | Histórico |
 | `POST` | `/pipeline/run` | Executa o pipeline |
 | `POST` | `/auth/register` | Cria uma conta |
-| `POST` | `/auth/login` | Login |
-| `GET` | `/auth/me` | Usuário autenticado |
-| `GET/POST/DELETE` | `/favorites` | Gerenciamento de favoritos |
-| `GET/POST/DELETE` | `/saved-searches` | Buscas salvas |
+| `POST` | `/auth/login` | Login (retorna token JWT) |
+| `GET` | `/auth/me` | Dados do usuário autenticado |
+| `GET`/`POST`/`DELETE` | `/favorites` | Imóveis favoritados pelo usuário |
+| `GET`/`POST`/`DELETE` | `/saved-searches` | Buscas salvas (alertas pessoais) |
 
-### Swagger
+Documentação: `http://localhost:8000/docs`
 
-Após iniciar a API:
+### Autenticação
 
-```text
-http://localhost:8000/docs
+Contas de usuário permitem salvar imóveis favoritos e criar **buscas salvas**:
+critérios (cidade, bairro, faixa de preço, quartos mínimos) que são
+reavaliados a cada execução do pipeline — quando surgem imóveis novos
+compatíveis, um alerta pessoal é gerado e aparece tanto no dashboard
+(aba **Conta** / aba **Histórico**) quanto em `GET /alerts`.
+
+```bash
+# Criar conta (retorna access_token)
+curl -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "voce@example.com", "password": "senhaSegura1"}'
+
+# Login
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "voce@example.com", "password": "senhaSegura1"}'
+
+# Endpoints protegidos usam o token no header Authorization
+curl http://localhost:8000/favorites \
+  -H "Authorization: Bearer <access_token>"
+
+curl -X POST http://localhost:8000/saved-searches \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Apto em Pinheiros", "city": "São Paulo", "neighborhood": "Pinheiros", "max_price": 700000}'
 ```
 
----
+Senhas são armazenadas com hash PBKDF2-HMAC-SHA256 (salt aleatório por
+usuário); os tokens são JWT assinados com `SECRET_KEY`. **Defina uma
+`SECRET_KEY` própria no `.env` antes de usar em produção** — veja
+`.env.example`.
 
-## 🛠️ Stack
+## Execução
 
-| Tecnologia | Utilização |
-|---|---|
-| **Python** | Linguagem principal |
-| **FastAPI** | API REST |
-| **Pandas** | Manipulação de dados |
-| **NumPy** | Computação numérica |
-| **Scikit-learn** | Machine Learning |
-| **SQLite** | Banco para demonstração |
-| **PostgreSQL** | Banco para produção |
-| **Streamlit** | Dashboard |
-| **Plotly** | Visualizações |
-| **Docker** | Containerização |
-| **Pytest** | Testes automatizados |
-| **GitHub Actions** | CI/CD |
+### Quick Start
 
----
-
-## 📁 Estrutura do projeto
-
-```text
-real-estate-monitor/
-│
-├── config/
-│
-├── src/
-│   ├── alerts/
-│   ├── api/
-│   ├── auth/
-│   ├── data_ingestion/
-│   ├── data_processing/
-│   ├── data_storage/
-│   ├── orchestration/
-│   └── visualization/
-│
-├── tests/
-│
-├── scripts/
-│
-├── main.py
-├── requirements.txt
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
----
-
-## ⚡ Como executar
-
-### Windows
+**Windows**
 
 ```powershell
 .\scripts\quick_start.ps1
 ```
 
-### Linux / macOS
+**Linux / macOS**
 
 ```bash
 ./scripts/quick_start.sh
 ```
 
-### Execução manual
+### Manual
 
 ```bash
 python -m venv venv
-```
-
-Ative o ambiente virtual e instale as dependências:
-
-```bash
 pip install -r requirements.txt
-```
-
-Execute o projeto:
-
-```bash
 python main.py run
 ```
 
----
-
-## 🐳 Docker
-
-Para executar todos os serviços utilizando Docker:
+### Docker
 
 ```bash
 docker compose up --build
@@ -365,156 +157,91 @@ docker compose up --build
 ### Serviços
 
 | Serviço | URL |
-|---|---|
-| 🖥️ Dashboard | `http://localhost:8501` |
-| ⚙️ API | `http://localhost:8000` |
-| 📚 Swagger | `http://localhost:8000/docs` |
+|:--|:--|
+| Dashboard | `http://localhost:8501` |
+| API | `http://localhost:8000` |
+| Swagger | `http://localhost:8000/docs` |
 
----
-
-## 💻 CLI
-
-O projeto possui uma CLI para facilitar a execução dos principais componentes.
-
-### Pipeline completo
+## CLI
 
 ```bash
 python main.py run
-```
-
-### Pipeline com dados reais
-
-```bash
 python main.py run --source live
-```
-
-### Scraping
-
-```bash
 python main.py scrape
-```
-
-### Dashboard
-
-```bash
 python main.py dashboard
-```
-
-### API
-
-```bash
 python main.py api
 ```
 
----
+## Estrutura
 
-## 🧪 Testes
+```text
+real-estate-monitor/
+├── config/
+├── src/
+│   ├── data_ingestion/
+│   ├── data_processing/
+│   ├── data_storage/
+│   ├── alerts/
+│   ├── auth/
+│   ├── orchestration/
+│   ├── api/
+│   └── visualization/
+├── tests/
+├── scripts/
+├── main.py
+├── requirements.txt
+├── docker-compose.yml
+└── README.md
+```
 
-Execute os testes com:
+## Testes
 
 ```bash
 pytest
 ```
 
-Para visualizar detalhes:
+Ou, para saída detalhada:
 
 ```bash
 pytest -v
 ```
 
-O projeto também possui **GitHub Actions** para execução automática dos testes em:
+O projeto possui GitHub Actions para execução automática dos testes em `push` e `pull request` na branch `main`.
 
-- `push`
-- `pull request`
-- branch `main`
+## Configuração
 
----
-
-## ⚙️ Configuração
-
-Crie seu arquivo `.env` baseado no `.env.example`.
-
-### CORS
+Para restringir origens e proteger o pipeline:
 
 ```env
 CORS_ORIGINS=https://meuapp.com
-```
-
-### Proteção do pipeline
-
-```env
 PIPELINE_API_KEY=uma-chave-secreta
 ```
 
-Quando configurada, a chave deve ser enviada no header:
+Quando configurada, a chave é enviada no header:
 
 ```http
 X-API-Key: uma-chave-secreta
 ```
 
-### JWT
+Para autenticação de usuários, defina também uma chave própria para assinar
+os tokens JWT (veja `.env.example`):
 
 ```env
 SECRET_KEY=troque-por-uma-chave-aleatoria-forte
 ```
 
-> ⚠️ Nunca publique chaves, tokens ou credenciais reais no repositório.
+## Disclaimer
 
----
+Os dados sintéticos, previsões de Machine Learning e estimativas de aluguel/yield são destinados a **prototipagem, estudos e demonstração técnica**.
 
-## 📊 Pipeline
-
-O fluxo principal do sistema pode ser representado da seguinte forma:
-
-```text
-                 ┌─────────────────┐
-                 │  Data Sources   │
-                 └────────┬────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │ Data Ingestion  │
-                 └────────┬────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │ Data Processing │
-                 └────────┬────────┘
-                          │
-              ┌───────────┴───────────┐
-              ▼                       ▼
-       ┌─────────────┐         ┌─────────────┐
-       │  Database   │         │ ML Pipeline │
-       └──────┬──────┘         └──────┬──────┘
-              │                       │
-              └───────────┬───────────┘
-                          ▼
-                 ┌─────────────────┐
-                 │ Opportunity &   │
-                 │ Alert Engine    │
-                 └────────┬────────┘
-                          │
-              ┌───────────┴───────────┐
-              ▼                       ▼
-       ┌─────────────┐         ┌─────────────┐
-       │  FastAPI    │         │  Streamlit  │
-       └─────────────┘         └─────────────┘
-```
-
----
-
-## 📌 Disclaimer
-
-Os dados sintéticos, previsões de Machine Learning e estimativas de aluguel e yield são destinados a **prototipagem, estudos e demonstração técnica**.
-
-Os resultados dependem da qualidade, quantidade e atualidade dos dados utilizados e **não substituem avaliação imobiliária, financeira ou profissional especializada**.
+Os resultados dependem da qualidade, quantidade e atualidade dos dados utilizados e não substituem avaliação imobiliária, financeira ou profissional especializada.
 
 ---
 
 <div align="center">
 
-### 🏠 Real Estate Monitor
+**Real Estate Monitor**
 
-**Python · FastAPI · Scikit-learn · Streamlit · Docker**
+Python · FastAPI · Scikit-learn · Streamlit · Docker
 
 </div>

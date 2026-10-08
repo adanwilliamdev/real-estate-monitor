@@ -230,3 +230,11 @@ class TestOpportunitiesAPI:
         ).json()
         assert body["confidence_interval_low"] <= body["predicted_price"] <= body["confidence_interval_high"]
         assert body["interval_coverage"] == 0.9 and body["baseline_mape"] > 0
+
+
+class TestJsonSafety:
+    def test_alerts_with_missing_fields_serialize(self, client):
+        # alertas globais têm user_id/saved_search_id/value ausentes (NaN no pandas)
+        resp = client.get("/alerts")
+        assert resp.status_code == 200
+        assert any(a["user_id"] is None for a in resp.json())
