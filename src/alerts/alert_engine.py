@@ -14,10 +14,12 @@ Regras (configuráveis via construtor):
 - `anomaly_ratio_threshold`: % de imóveis marcados como anomalia no lote
   atual que dispara um alerta de "pico de anomalias".
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pandas as pd
 
+from src.data_processing.lifecycle import LifecycleDiff, lifecycle_alerts
+from src.data_processing.opportunities import opportunity_alerts
 from src.data_storage.database import DatabaseManager
 from src.logging_setup import logger
 
@@ -45,14 +47,24 @@ class AlertEngine:
             logger.info(f"{len(alerts)} alerta(s) global(is) gerado(s)")
         return alerts
 
-    def evaluate_saved_searches(self, df: pd.DataFrame, db: DatabaseManager) -> List[Dict]:
+    def evaluate_saved_searches(
+        self,
+        df: pd.DataFrame,
+        db: DatabaseManager,
+        new_listings: Optional[pd.DataFrame] = None,
+    ) -> List[Dict]:
         """Confere as buscas salvas (alertas pessoais) de todos os usuários
         contra o lote de anúncios coletado nesta execução do pipeline.
 
-        Gera um alerta pessoal (`user_id` preenchido) quando o número de
-        imóveis compatíveis com os critérios de uma busca aumenta em
-        relação à última execução — evita repetir o mesmo alerta a cada
-        rodada quando nada de novo aparece.
+        Gera um alerta pessoal (`user_id` preenchido) quando há novidade:
+
+        - Com `new_listings` (anúncios que não existiam na coleta anterior,
+          ver `lifecycle.diff_listings`): alerta se algum deles é compatível
+          com a busca, ou se a busca ainda não tinha resultados registrados.
+        - Sem `new_listings` (modo legado): alerta quando a contagem de
+          imóveis compatíveis muda em relação à última execução.
+
+        Em ambos os casos, nada novo = nenhum alerta repetido.
         """
         alerts: List[Dict] = []
         if df is None or df.empty:
@@ -67,19 +79,37 @@ class AlertEngine:
             match_count = len(matches)
             previous_count = int(search.get("last_match_count") or 0)
 
-            if match_count > 0 and match_count != previous_count:
+            new_count = None
+            if new_listings is not None:
+                new_matches = (
+                    self._filter_by_search(new_listings, search) if not new_listings.empty else new_listings
+                )
+                new_count = len(new_matches)
+                should_alert = match_count > 0 and (new_count > 0 or previous_count == 0)
+            else:
+                should_alert = match_count > 0 and match_count != previous_count
+
+            if should_alert:
                 avg_price = matches["price"].mean() if "price" in matches.columns else None
+                name = search.get("name")
+                if new_count:
+                    avg = f", preço médio R$ {avg_price:,.0f}" if avg_price else ""
+                    message = (
+                        f"{new_count} novo(s) imóvel(is) compatível(is) com a busca salva "
+                        f"'{name}' ({match_count} no total{avg})."
+                    )
+                else:  # mensagem legada (sem diff de coletas)
+                    message = (
+                        f"{match_count} imóvel(is) encontrados para a busca salva '{name}'"
+                        + (f" (preço médio R$ {avg_price:,.0f})." if avg_price else ".")
+                    )
                 alerts.append(
                     {
                         "severity": "info",
                         "category": "saved_search_match",
                         "city": search.get("city"),
                         "neighborhood": search.get("neighborhood"),
-                        "message": (
-                            f"{match_count} imóvel(is) encontrados para a busca salva "
-                            f"'{search.get('name')}'"
-                            + (f" (preço médio R$ {avg_price:,.0f})." if avg_price else ".")
-                        ),
+                        "message": message,
                         "value": float(match_count),
                         "user_id": int(search["user_id"]),
                         "saved_search_id": int(search["id"]),
@@ -91,6 +121,22 @@ class AlertEngine:
         if alerts:
             db.save_alerts(alerts)
             logger.info(f"{len(alerts)} alerta(s) pessoal(is) gerado(s)")
+        return alerts
+
+    def evaluate_listing_events(self, diff: LifecycleDiff, db: DatabaseManager) -> List[Dict]:
+        """Gera alertas de anúncios novos / retirados / com preço reduzido."""
+        alerts = lifecycle_alerts(diff)
+        if alerts:
+            db.save_alerts(alerts)
+            logger.info(f"{len(alerts)} alerta(s) de ciclo de vida gerado(s)")
+        return alerts
+
+    def evaluate_opportunities(self, ranked: pd.DataFrame, db: DatabaseManager) -> List[Dict]:
+        """Um alerta por cidade com oportunidades fortes (abaixo do intervalo do modelo)."""
+        alerts = opportunity_alerts(ranked)
+        if alerts:
+            db.save_alerts(alerts)
+            logger.info(f"{len(alerts)} alerta(s) de oportunidade gerado(s)")
         return alerts
 
     @staticmethod

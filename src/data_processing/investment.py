@@ -70,12 +70,23 @@ class InvestmentAnalyzer:
         city: str,
         area: Optional[float] = None,
         market_price_per_m2: Optional[float] = None,
+        fair_value: Optional[float] = None,
     ) -> InvestmentAnalysis:
+        """Analisa a viabilidade de comprar um imóvel pelo `price` pedido.
+
+        `fair_value` (opcional): valor de mercado estimado do imóvel (ver
+        `opportunities.py`). O aluguel de um imóvel depende do que ele *vale*,
+        não do que o vendedor pede; por isso, quando informado, o aluguel é
+        estimado sobre o valor justo e o yield é medido sobre o preço pago.
+        Sem ele, o aluguel é proporcional ao próprio preço e o yield fica
+        idêntico para todos os imóveis da mesma cidade (comportamento legado).
+        """
         if price <= 0:
             raise ValueError("Preço deve ser positivo")
 
         rent_ratio = self._rent_ratio(city)
-        monthly_rent = price * rent_ratio
+        rent_basis = fair_value if fair_value is not None and fair_value > 0 else price
+        monthly_rent = rent_basis * rent_ratio
         gross_yield_annual = (monthly_rent * 12) / price
         net_annual_rent = monthly_rent * 12 * (1 - self.expense_ratio)
         net_yield_annual = net_annual_rent / price
@@ -92,6 +103,11 @@ class InvestmentAnalyzer:
             vs_market_pct = (actual_per_m2 / market_price_per_m2 - 1) * 100
 
         verdict, notes = self._verdict(net_yield_annual, vs_market_pct)
+        if rent_basis != price:
+            notes += (
+                f" Aluguel estimado sobre o valor justo (R$ {rent_basis:,.0f}), "
+                "não sobre o preço pedido."
+            )
 
         return InvestmentAnalysis(
             price=round(price, 2),
@@ -131,7 +147,14 @@ class InvestmentAnalyzer:
     def rank_best_opportunities(
         self, df: pd.DataFrame, top_n: int = 10
     ) -> pd.DataFrame:
-        """Rankeia imóveis do DataFrame por yield líquido estimado (melhor custo-benefício)."""
+        """Rankeia imóveis do DataFrame por yield líquido estimado.
+
+        Se o DataFrame tiver a coluna `fair_value`, o aluguel é estimado sobre
+        ela e o ranking passa a diferenciar imóveis da mesma cidade (quem está
+        abaixo do valor justo rende mais). Sem ela, todos os imóveis de uma
+        cidade empatam no mesmo yield — para um ranking útil, use
+        `OpportunityFinder` (opportunities.py).
+        """
         if df is None or df.empty:
             return pd.DataFrame()
 
@@ -149,6 +172,11 @@ class InvestmentAnalyzer:
                     city=r["city"],
                     area=float(r["area"]) if "area" in r and pd.notnull(r["area"]) else None,
                     market_price_per_m2=market_avg.get(r["city"]),
+                    fair_value=(
+                        float(r["fair_value"])
+                        if "fair_value" in r and pd.notnull(r["fair_value"])
+                        else None
+                    ),
                 )
             except (ValueError, TypeError):
                 continue

@@ -28,6 +28,8 @@ from src.data_processing.analytics import RealEstateAnalytics
 from src.data_processing.cleaner import DataCleaner
 from src.data_processing.investment import InvestmentAnalyzer
 from src.data_processing.ml_models import PricePredictionModel
+from src.data_processing.opportunities import OpportunityFinder
+from src.data_processing.serialization import df_to_records
 from src.data_storage.database import DatabaseManager
 from src.logging_setup import logger
 from src.orchestration.pipeline import run_pipeline
@@ -107,6 +109,20 @@ def _get_clean_df(city: Optional[str] = None) -> pd.DataFrame:
     return _cleaner.clean_listings(df)
 
 
+_scored_cache: dict = {}
+
+
+def _scored_market(df: pd.DataFrame) -> pd.DataFrame:
+    """Pontua o mercado inteiro (treina um modelo); guarda só o resultado mais
+    recente, indexado por uma impressão digital dos dados, para não retreinar
+    a cada requisição."""
+    key = (len(df), round(float(df["price"].sum())))
+    if key not in _scored_cache:
+        _scored_cache.clear()
+        _scored_cache[key] = OpportunityFinder().score_all(df)
+    return _scored_cache[key]
+
+
 # -------------------- Schemas --------------------
 class PredictionRequest(BaseModel):
     area: float = Field(..., gt=0, description="Área em m²")
@@ -177,7 +193,7 @@ def root():
         "docs": "/docs",
         "endpoints": [
             "/health", "/listings", "/stats", "/cities", "/predict", "/investment",
-            "/investment/opportunities", "/alerts", "/history/{city}", "/pipeline/run",
+            "/investment/opportunities", "/opportunities", "/alerts", "/history/{city}", "/pipeline/run",
             "/auth/register", "/auth/login", "/auth/me",
             "/favorites", "/saved-searches",
         ],
@@ -306,11 +322,48 @@ def investment_analysis(req: InvestmentRequest):
 
 @app.get("/investment/opportunities", tags=["investimento"])
 def investment_opportunities(city: Optional[str] = None, top_n: int = Query(10, le=50)):
+    """Ranking por yield líquido. O aluguel é estimado sobre o *valor justo*
+    do imóvel (modelo de preço), então imóveis da mesma cidade deixam de
+    empatar. Para o ranking completo por desconto/score, use `/opportunities`."""
     df = _get_clean_df(city=city)
     if df.empty:
         raise HTTPException(status_code=404, detail="Sem dados. Rode o pipeline primeiro.")
+    try:
+        market = _get_clean_df()
+        scored = _scored_market(market)[["source", "source_id", "fair_value"]]
+        df = df.assign(source_id=df["source_id"].astype(str)).merge(
+            scored.assign(source_id=scored["source_id"].astype(str)),
+            on=["source", "source_id"], how="left",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Valor justo indisponível, usando ranking legado: {exc}")
     ranked = _investment.rank_best_opportunities(df, top_n=top_n)
-    return ranked.to_dict(orient="records")
+    return df_to_records(ranked)
+
+
+@app.get("/opportunities", tags=["investimento"])
+def opportunities(
+    city: Optional[str] = None,
+    top_n: int = Query(10, ge=1, le=50),
+    include_review: bool = Query(
+        True, description="Inclui anúncios com desconto atípico (marcados needs_review)."
+    ),
+):
+    """Anúncios abaixo do valor justo estimado, com score 0-100 e o motivo.
+
+    Descontos muito grandes (>= 40%) vêm com `needs_review=true`: costumam ser
+    erro de preço, anúncio desatualizado ou golpe, não pechincha.
+    """
+    df = _get_clean_df()
+    if df.empty:
+        raise HTTPException(status_code=404, detail="Sem dados. Rode o pipeline primeiro.")
+    scored = _scored_market(df)
+    ranked = scored[scored["discount_pct"] >= 5.0]
+    if city:
+        ranked = ranked[ranked["city"].str.contains(city, case=False, na=False)]
+    if not include_review:
+        ranked = ranked[~ranked["needs_review"]]
+    return df_to_records(ranked.sort_values("score", ascending=False).head(top_n))
 
 
 @app.get("/alerts", tags=["alertas"])
@@ -355,6 +408,8 @@ def trigger_pipeline(req: PipelineRunRequest):
         "saved_count": result.get("saved_count", 0),
         "alerts_generated": len(result.get("alerts", [])),
         "model": result.get("model", {}),
+        "listing_events": result.get("listing_events", {}),
+        "top_opportunities": result.get("opportunities", [])[:5],
     }
 
 

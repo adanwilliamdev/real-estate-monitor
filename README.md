@@ -19,9 +19,11 @@ O projeto combina **Data Science, Machine Learning e engenharia de software** em
 ## Funcionalidades
 
 - Análise de preços e tendências
-- Previsão de preços com Random Forest
+- Previsão de preços com validação cruzada, baseline e intervalo calibrado
+- **Motor de oportunidades**: desconto sobre o valor justo, score 0-100 e motivo
+- **Monitoramento**: anúncios novos, retirados e reduções de preço entre coletas
 - Análise de investimento: ROI, yield e payback
-- Detecção de anomalias e oportunidades
+- Detecção de anomalias
 - Clusterização de imóveis com K-Means
 - Análises por cidade e bairro
 - Contas de usuário: favoritos e buscas salvas com alertas pessoais
@@ -34,16 +36,36 @@ O projeto combina **Data Science, Machine Learning e engenharia de software** em
 
 ## Machine Learning
 
-O modelo `RandomForestRegressor` utiliza características como:
+Alvo: `log(R$/m²)`. Features: **área · quartos · banheiros · cidade · bairro**
+(+ área/quarto e banheiro/quarto). Três candidatos competem em validação
+cruzada K-Fold: **baseline** (mediana de R$/m² do bairro), Random Forest e
+Gradient Boosting. Vence o de menor MAPE, então o sistema nunca entrega algo
+pior que a regra trivial.
 
-**Área · Quartos · Banheiros · Cidade · Bairro**
+- Métricas out-of-fold: R², MAPE, MAE, `baseline_mape`, `best_ml_mape`, `ml_beats_baseline`
+- Intervalo de ~90% **calibrado** (conformal, a partir dos erros reais fora da amostra)
+- Aviso quando cidade/bairro não foi visto no treino
 
-Métricas disponíveis:
+> **Nos dados sintéticos o baseline costuma vencer**: o gerador define o R$/m²
+> só pelo bairro, então a regra do bairro já é quase o preditor ótimo. Com dados
+> reais (andar, idade, vagas...) espera-se que o ML ganhe; o relatório do
+> pipeline mostra quem venceu.
 
-- R²
-- MAPE
-- Importância das variáveis
-- Intervalo de confiança aproximado
+## Oportunidades
+
+`OpportunityFinder` estima o **valor justo** de cada anúncio (previsão
+out-of-fold, o modelo nunca vê o próprio anúncio), mede o desconto, cruza com o
+yield líquido (aluguel estimado sobre o valor justo) e gera um score 0-100 com o
+motivo. Descontos >= 40% vêm com `needs_review`: costumam ser erro de preço ou
+golpe, não pechincha.
+
+## Monitoramento
+
+O pipeline atualiza **apenas as cidades coletadas** e compara com a coleta
+anterior: anúncios novos, retirados e reduções de preço viram alertas (um por
+tipo e cidade). Buscas salvas alertam quando surgem imóveis *novos* compatíveis.
+No modo `demo`, o mercado **evolui** entre execuções (vendidos, novos, cortes de
+preço), em vez de ser regerado do zero.
 
 ## API
 
@@ -55,7 +77,8 @@ Métricas disponíveis:
 | `GET` | `/neighborhoods` | Dados por bairro |
 | `POST` | `/predict` | Previsão de preço |
 | `POST` | `/investment` | Análise de investimento |
-| `GET` | `/investment/opportunities` | Oportunidades |
+| `GET` | `/investment/opportunities` | Ranking por yield (aluguel sobre valor justo) |
+| `GET` | `/opportunities` | Abaixo do valor justo: score, desconto e motivo |
 | `GET` | `/alerts` | Alertas (globais; inclui pessoais se autenticado) |
 | `GET` | `/history/{city}` | Histórico |
 | `POST` | `/pipeline/run` | Executa o pipeline |

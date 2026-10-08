@@ -204,3 +204,29 @@ class TestAuthFlow:
         token = self._register_and_login(client, email="grace@example.com")
         assert client.get("/alerts").status_code == 200
         assert client.get("/alerts", headers=self._auth_header(token)).status_code == 200
+
+
+class TestOpportunitiesAPI:
+    def test_opportunities_endpoint(self, client):
+        resp = client.get("/opportunities?top_n=5")
+        assert resp.status_code == 200
+        rows = resp.json()
+        assert len(rows) <= 5
+        for r in rows:
+            assert r["discount_pct"] >= 5 and 0 <= r["score"] <= 100 and r["reason"]
+
+    def test_opportunities_can_hide_listings_needing_review(self, client):
+        rows = client.get("/opportunities?top_n=50&include_review=false").json()
+        assert all(not r["needs_review"] for r in rows)
+
+    def test_investment_opportunities_now_differentiate_yields(self, client):
+        rows = client.get("/investment/opportunities?top_n=20").json()
+        assert len({r["net_yield_annual_pct"] for r in rows}) > 1
+
+    def test_predict_exposes_baseline_and_interval_metadata(self, client):
+        body = client.post(
+            "/predict",
+            json={"area": 70, "rooms": 2, "bathrooms": 2, "city": "São Paulo", "neighborhood": "Pinheiros"},
+        ).json()
+        assert body["confidence_interval_low"] <= body["predicted_price"] <= body["confidence_interval_high"]
+        assert body["interval_coverage"] == 0.9 and body["baseline_mape"] > 0

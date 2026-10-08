@@ -14,7 +14,7 @@ Além da tabela principal de anúncios, mantém:
   picos de anomalias, etc.), consultáveis pelo dashboard e pela API.
 """
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 from sqlalchemy import (
@@ -243,10 +243,22 @@ class DatabaseManager:
             df = pd.read_sql(query.statement, self.engine)
         return df
 
-    def clear_listings(self) -> int:
-        """Remove todos os registros da tabela (útil para re-popular com demo data)."""
+    def clear_listings(self, cities: Optional[Iterable[str]] = None) -> int:
+        """Remove anúncios da tabela.
+
+        - `cities=None` (padrão, comportamento original): remove **todos**.
+        - `cities=[...]`: remove apenas os anúncios dessas cidades (nome exato,
+          como gravado em `city`). Usado pelo pipeline para atualizar uma cidade
+          sem apagar as demais. Lista vazia não remove nada.
+        """
         with self.Session() as session:
-            deleted = session.query(PropertyListing).delete()
+            query = session.query(PropertyListing)
+            if cities is not None:
+                wanted = [c for c in cities if c]
+                if not wanted:
+                    return 0
+                query = query.filter(PropertyListing.city.in_(wanted))
+            deleted = query.delete(synchronize_session=False)
             session.commit()
         logger.info(f"Removidos {deleted} registros existentes")
         return deleted

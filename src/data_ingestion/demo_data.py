@@ -94,10 +94,16 @@ def _pick_city_key(city: str) -> str:
     return "sao-paulo"
 
 
+def display_name_for(city: str) -> str:
+    """Nome de exibição (ex: 'São Paulo') para um slug/nome de cidade."""
+    return CITY_COORDS[_pick_city_key(city)]["display_name"]
+
+
 def generate_synthetic_listings(
     city: str = "sao-paulo",
     n_listings: int = 300,
     seed: int = None,
+    start_index: int = 0,
 ) -> pd.DataFrame:
     """Gera um DataFrame de anúncios imobiliários sintéticos e realistas.
 
@@ -105,6 +111,8 @@ def generate_synthetic_listings(
         city: cidade alvo (ex: 'sao-paulo', 'rio-de-janeiro')
         n_listings: quantidade de anúncios a gerar
         seed: seed para reprodutibilidade (opcional)
+        start_index: primeiro número usado nos `source_id` (permite gerar
+            anúncios novos sem colidir com ids de um lote anterior)
 
     Returns:
         DataFrame com colunas compatíveis com o restante do pipeline.
@@ -116,7 +124,7 @@ def generate_synthetic_listings(
     rooms_choices = [1, 2, 2, 3, 3, 3, 4, 4, 5]
     listings: List[Dict] = []
 
-    for i in range(n_listings):
+    for i in range(start_index, start_index + n_listings):
         neighborhood = rng.choice(city_info["neighborhoods"])
         rooms = int(rng.choice(rooms_choices))
 
@@ -164,6 +172,60 @@ def generate_synthetic_listings(
     df = pd.DataFrame(listings)
     logger.info(f"Gerados {len(df)} anúncios sintéticos para {city_info['display_name']}")
     return df
+
+
+_DB_ONLY_COLUMNS = ["id", "created_at", "updated_at"]
+
+
+def evolve_synthetic_listings(
+    previous: pd.DataFrame,
+    city: str = "sao-paulo",
+    n_listings: int = 300,
+    seed: int = None,
+    sold_rate: float = 0.10,
+    cut_rate: float = 0.12,
+) -> pd.DataFrame:
+    """Simula a passagem do tempo em um mercado já coletado.
+
+    A partir do lote anterior: ~`sold_rate` dos anúncios saem do ar (vendidos),
+    ~`cut_rate` dos que ficam reduzem o preço (3% a 10%) e anúncios novos
+    entram para voltar a `n_listings`. Assim, execuções sucessivas do pipeline
+    em modo demo produzem eventos realistas de ciclo de vida (novo, vendido,
+    redução de preço) em vez de um mercado totalmente diferente a cada rodada.
+    """
+    if previous is None or previous.empty:
+        return generate_synthetic_listings(city, n_listings=n_listings, seed=seed)
+
+    rng = np.random.default_rng(seed)
+    base = previous.drop(columns=[c for c in _DB_ONLY_COLUMNS if c in previous.columns]).copy()
+
+    for col in ("price", "area"):  # robustez: o banco pode devolver tipos "object"
+        base[col] = pd.to_numeric(base[col], errors="coerce")
+    base = base.dropna(subset=["price", "area"])
+
+    kept = base[rng.random(len(base)) >= sold_rate].copy()
+    if len(kept) > n_listings:  # usuário pediu um lote menor: o excedente "sai do ar"
+        kept = kept.sample(n=n_listings, random_state=int(rng.integers(0, 2**31 - 1)))
+
+    cut = rng.random(len(kept)) < cut_rate
+    factors = 1 - rng.uniform(0.03, 0.10, size=len(kept))
+    kept["price"] = np.where(cut, np.round(kept["price"].to_numpy() * factors, -2), kept["price"])
+
+    n_new = max(0, n_listings - len(kept))
+    if n_new:
+        suffix = base["source_id"].astype(str).str.extract(r"-(\d+)$")[0].astype(float)
+        start = int(suffix.max()) + 1 if suffix.notna().any() else len(base)
+        fresh = generate_synthetic_listings(
+            city, n_listings=n_new, seed=int(rng.integers(0, 2**31 - 1)), start_index=start
+        )
+        kept = pd.concat([kept, fresh], ignore_index=True)
+
+    logger.info(
+        f"Mercado evoluído: {len(base)} -> {len(kept)} anúncios "
+        f"({int((~base['source_id'].isin(kept['source_id'])).sum())} saíram, "
+        f"{n_new} novos, {int(cut.sum())} com preço reduzido)"
+    )
+    return kept.reset_index(drop=True)
 
 
 if __name__ == "__main__":
